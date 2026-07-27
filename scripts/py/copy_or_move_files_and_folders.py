@@ -152,8 +152,11 @@ def copy_or_move_files_and_folders(source_dir, destination_dir, overwrite=False,
 
 # Example usage
 if __name__ == "__main__":
-    source_directory = "D:/datalib-edu/HLO_Database/CNT"
-    destination_directory = "Z:/datalib-edu"
+    # Placeholders. Point these at your own trees; a real internal path here
+    # would both mislead anyone else running the script and disclose the
+    # organisation of a tree they cannot see.
+    source_directory = "D:/my-source-tree"
+    destination_directory = "Z:/my-destination-tree"
     overwrite_option = False  # Set to False to skip existing items
     move_option = False  # Set to True to move files and folders instead of copying
     max_threads_option = 4  # Maximum number of threads to use

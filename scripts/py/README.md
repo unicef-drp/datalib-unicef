@@ -93,7 +93,7 @@ Improved version. Same core signature as v1 plus two additions:
   (files missing from the destination, newer in the source, identical) without
   performing any file operations
 - `report_file="operation_report.md"` — path of the markdown report it
-  generates (the source of `internal/reports/operation_report*.md`)
+  generates (kept out of the public distribution: the reports enumerate an internal tree)
 
 The hyphen in the filename prevents a plain `import`; edit the configuration in
 its `if __name__ == "__main__":` block and run it directly:

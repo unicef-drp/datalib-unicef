@@ -29,7 +29,7 @@ def delete_subfolders_with_word(root_folder, word, override_warning=False):
 
 # Example usage:
 # To delete with confirmation:
-# delete_subfolders_with_word('D:/datalib/bra', 'PANEL')
+# delete_subfolders_with_word('D:/datalib/CCC', 'PANEL')
 
 # To delete without confirmation:
-# delete_subfolders_with_word('D:/datalib/bra', 'PANEL', override_warning=True)
+# delete_subfolders_with_word('D:/datalib/CCC', 'PANEL', override_warning=True)

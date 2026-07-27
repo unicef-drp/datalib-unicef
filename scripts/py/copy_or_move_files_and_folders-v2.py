@@ -241,13 +241,14 @@ def copy_or_move_files_and_folders(source_dir, destination_dir, overwrite=False,
 
 # Example usage
 if __name__ == "__main__":
-    source_directory = "D:/datalib-edu/HLO_Database/CNT"
-    destination_directory = "Z:/datalib-edu"
+    # Placeholders -- see the note in copy_or_move_files_and_folders.py.
+    source_directory = "D:/my-source-tree"
+    destination_directory = "Z:/my-destination-tree"
     overwrite_option = False  # Set to True to overwrite existing files and folders
     move_option = False  # Set to True to move files and folders instead of copying
     max_threads_option = 4  # Maximum number of threads to use
     report_only_option = True  # Set to True to only generate the comparison report
-    report_file_option = "C:/GitHub/mytasks/datalib-unicef/internal/reports/operation_report-v3.md"  # Path to the report file
+    report_file_option = "./operation_report.md"  # Path to the report file
 
     copy_or_move_files_and_folders(
         source_directory,
