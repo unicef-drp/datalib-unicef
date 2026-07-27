@@ -1,0 +1,22 @@
+# datalib_config.yml  —  datalib-specific fallback for the library root.
+#
+# LOCATION (the same directory as user_config.yml):
+#   Windows:   %USERPROFILE%\.config\datalib_config.yml
+#   mac/*nix:  ~/.config/datalib_config.yml
+#
+# datalib reads the library root from the current user's block here ONLY when
+# ~/.config/user_config.yml does not already provide a `datalib:` key for you
+# (a two-file, key-presence fallback — see config/grammar.md section 7). If you
+# keep a `datalib:` key in the shared user_config.yml, you do not need this file.
+#
+# One top-level block per machine username (Windows: echo %USERNAME%).
+# Use forward slashes in paths; quote UNC paths with SINGLE quotes.
+
+your_windows_username:
+  datalib:      "Z:/datalib"
+  # Multi-root (per-domain) deployment: there is NO per-domain config key.
+  # Only the keys above are read; any other key here is parsed and discarded.
+  # Name a domain tree per call instead --
+  #   datalib, library(Z:/datalib-hlt) countries
+  #   datalib_load, ... root(Z:/datalib-hlt)
+  # (see config/grammar.md "Deployment topologies").

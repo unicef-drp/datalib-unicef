@@ -1,0 +1,55 @@
+name: conformance
+
+# R + Python legs of the datalib contract-v1 conformance suite.
+# Both read the SAME golden cases (tests/cases_*.csv, tests/error_taxonomy.csv)
+# and the committed fixture library. The Stata leg cannot run here (no CI
+# license): it is a manual pre-release gate, run locally via
+#   do stata/tests/run_conformance.do
+#
+# BOTH legs run on windows-latest as well as ubuntu-latest. The entire config,
+# writer and root-resolution surface is path- and case-shaped -- backslash vs
+# forward slash, drive letters, USERPROFILE vs HOME, directory-listing case --
+# and every operator of this library is on Windows. Testing only Linux tested
+# the one platform nobody uses.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+jobs:
+  python:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pandas pyyaml pytest
+      - name: Run conformance + package tests
+        run: python -m pytest python/tests -q
+
+  r:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - name: Install dependencies
+        run: Rscript -e 'install.packages(c("yaml", "haven", "fs", "testthat", "withr"))'
+      - name: Run conformance + package tests
+        run: |
+          Rscript -e 'library(testthat); res <- test_dir("r/tests/testthat", reporter = "summary", stop_on_failure = TRUE); df <- as.data.frame(res); cat(sprintf("TOTALS: pass=%d fail=%d error=%d skip=%d\n", sum(df[["passed"]]), sum(df[["failed"]]), sum(df[["error"]]), sum(df[["skipped"]])))'

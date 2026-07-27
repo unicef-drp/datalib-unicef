@@ -1,0 +1,7 @@
+case_id,country,year,survey,kind,collection,modules,master_version,nomerge,expect_error,expect_n,expect_windex8,expect_provenance
+l01,ZWE,2019,MICS,adaptation,HLT,household adult children,,,,6,2,1
+l02,ZWE,2019,MICS,adaptation,HLT,adult children,,,,5,,1
+l03,ZWE,2019,MICS,adaptation,HLT,,,,,6,,1
+l04,ZWE,2019,MICS,adaptation,HLT,household,,nomerge,,3,1,1
+l05,BRA,2015,PNAD,master,,household,,nomerge,,3,1,1
+l06,BRA,2015,PNAD,master,,household,9,nomerge,,3,1,1

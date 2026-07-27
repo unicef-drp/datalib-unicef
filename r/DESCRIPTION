@@ -1,0 +1,26 @@
+Package: datalib
+Title: Manage Versioned Survey Microdata Libraries
+Version: 0.9.19
+Authors@R: c(
+    person("Joao Pedro", "Azevedo", email = "jpazevedo@unicef.org", role = c("aut", "cre")))
+Description: Client for a standardized, versioned survey microdata library
+    (masters and harmonized adaptations) organized as
+    <root>/<CCC>/<CCC>_<YYYY>_<SSSS>/<vintage>/Data/{Original,Stata,R}/.
+    Enumerates countries, surveys, vintages and adaptations; resolves paths;
+    loads and merges survey modules from Stata .dta files. Part of a
+    trilingual suite also available for 'Stata' and 'Python'.
+Depends: R (>= 4.0.0)
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports:
+    yaml,
+    haven,
+    fs
+Suggests:
+    testthat (>= 3.0.0),
+    withr (>= 2.5.0)
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+URL: https://github.com/unicef-drp/datalib-unicef
+BugReports: https://github.com/unicef-drp/datalib-unicef/issues

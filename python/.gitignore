@@ -1,0 +1,7 @@
+# Python build/test artifacts (package-local; repo root .gitignore predates python/)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+dist/
+*.egg-info/

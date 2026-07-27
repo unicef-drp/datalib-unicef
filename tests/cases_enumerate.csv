@@ -1,0 +1,11 @@
+case_id,fn,country,year,survey,expect_values
+e01,countries,,,,BRA KEN ZWE
+e02,surveys,ZWE,,,ZWE_2019_MICS
+e03,surveys,KEN,,,KEN_2014_DHS KEN_2022_MICS
+e04,surveys,BRA,,,BRA_2015_PNAD
+e05,vintages,ZWE,2019,MICS,1 2
+e06,vintages,BRA,2015,PNAD,9 10
+e07,vintages,KEN,2022,MICS,1
+e08,adaptations,ZWE,2019,MICS,HLT IPUMS
+e09,adaptations,KEN,2022,MICS,HLT
+e10,adaptations,BRA,2015,PNAD,

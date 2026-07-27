@@ -1,0 +1,40 @@
+MIT License
+
+Copyright (c) 2024 UNICEF Data & Analytics
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------------------------
+SCOPE
+-------------------------------------------------------------------------------
+
+This licence covers everything in this repository. Unlike the private
+development repository it is generated from, this distribution deliberately
+contains NO third-party material, so the MIT grant above is unqualified.
+
+Two things are outside it because they are not distributed here:
+
+  * Reference documents (World Bank harmonization guidelines and workflow
+    designs) that informed datalib's conventions. They are cited in the
+    documentation but not reproduced. Obtain them from their publishers.
+
+  * Survey microdata accessed THROUGH this software. datalib is a client; it
+    ships no data. Each dataset is governed by the terms of its own provider
+    (UNICEF MICS, DHS, national statistical offices), independent of this
+    licence.

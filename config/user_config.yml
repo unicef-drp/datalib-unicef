@@ -1,0 +1,35 @@
+# user_config.yml  —  per-operator paths for the DW / datalib Stata + R routines.
+#
+# LOCATION (both the R routine and Stata's getuserconfig read this exact path):
+#   Windows:   %USERPROFILE%\.config\user_config.yml
+#   mac/*nix:  ~/.config/user_config.yml
+#
+# One top-level block per machine username (Windows: echo %USERNAME%).
+# Use forward slashes in paths. Quote UNC paths with SINGLE quotes so the
+# backslashes stay literal for BOTH the R yaml parser and the Stata parser.
+#
+# Keys:
+#   githubFolder : root that holds your local git clones
+#   teamsRoot    : root of your Teams-synced canonical deposit
+#   zDrive       : optional; drive letter/path for the Z: mirror (default Z:/)
+#   zDriveUNC    : optional; \\server\share to map the mirror to. Do NOT commit a
+#                  real internal share here — keep it in your local copy only.
+#                  If Z: is already mapped, read your value with:  mapzdrive, discover
+#   datalib      : optional; root of your datalib microdata tree. Read by all three
+#                  implementations (Stata sets ${datalib} from it when unset; R and
+#                  Python use it after the explicit argument and DATALIB_ROOT env var).
+#                  If you omit it here, datalib falls back to a `datalib:` key in
+#                  ~/.config/datalib_config.yml (see config/grammar.md section 7).
+
+your_windows_username:
+  githubFolder: "C:/GitHub"
+  teamsRoot:    "C:/Users/your_windows_username/UNICEF/Data and Analytics Section - DW-Production"
+  zDrive:       "Z:/"
+  zDriveUNC:    '\\<storage-account>.file.core.windows.net\<share>'
+  datalib:      "Z:/datalib"
+  # Multi-root (per-domain) deployment: there is NO per-domain config key.
+  # Only the keys above are read; any other key here is parsed and discarded.
+  # Name a domain tree per call instead --
+  #   datalib, library(Z:/datalib-hlt) countries
+  #   datalib_load, ... root(Z:/datalib-hlt)
+  # (see config/grammar.md "Deployment topologies").

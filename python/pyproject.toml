@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "unicef-datalib"
+version = "0.9.19"
+description = "Client for the UNICEF microdata library folder standard (Stata/R/Python shared contract v1)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "UNICEF D&A" }]
+dependencies = [
+    "pyyaml>=6.0",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+fidelity = ["pyreadstat>=1.2"]
+test = ["pytest>=7"]
+
+# Deliberately NO [project.scripts]: pip writes unsigned datalib.exe shims on
+# Windows, which AppLocker blocks. The CLI is `python -m datalib`.
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/datalib"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

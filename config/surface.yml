@@ -1,0 +1,154 @@
+# datalib public surface -- the machine-readable declaration of what exists.
+#
+# WHY THIS FILE EXISTS
+#
+# A parameter or subcommand may not be added to any implementation until it is
+# declared here. That ordering cannot be tested directly -- a test sees a
+# snapshot of the tree, not its history -- so what is enforced instead is the
+# invariant: at every commit, the implemented surface EQUALS the surface
+# declared here. If that holds and CI blocks the merge, declaring first is the
+# only way to land code.
+#
+# Enforced by: python/tests/test_surface.py (all three languages, since .ado and
+# .sthlp are plain text and need no Stata licence), r/tests/testthat/test-surface.R
+# (R's column), and stata/tests/run_conformance.do Part 9 (a live check that the
+# options really parse).
+#
+# COMPARISON SEMANTICS differ by language, on purpose:
+#   stata  -- a SET. Stata option order does not constrain callers.
+#   r      -- an ORDERED list. R matches positionally, and test-docs.R already
+#             pins \arguments to formals() in order.
+#   python -- an ORDERED list, for the same reason (test_docs.py pins the
+#             Parameters section to the signature, in order).
+#
+# The three columns being visibly different IS the point: this file is also the
+# work-list for the v0.10.0 argument-vocabulary alignment. See DIVERGENCES below.
+
+surface_version: 1
+
+# The 13 canonical contract commands (config/grammar.md "Shared public surface").
+commands:
+  datalib_config:
+    stata: [config, configdir, edit, init, library, profile, replace, user]
+    r: [user, config, configdir]
+    python: [user, config]
+  datalib_root:
+    stata: [find, root, set]
+    r: [root, user, config, configdir]
+    python: [root, user, config, report]
+  datalib_countries:
+    stata: [root]
+    r: [root]
+    python: [root]
+  datalib_surveys:
+    stata: [country, root, survey]
+    r: [country, root, survey, year]
+    python: [country, root]
+  datalib_vintages:
+    stata: [country, root, survey, year]
+    r: [country, year, survey, root]
+    python: [country, year, survey, root]
+  datalib_adaptations:
+    stata: [country, root, survey, year]
+    r: [country, year, survey, root]
+    python: [country, year, survey, root]
+  datalib_resolve:
+    stata: [adaptation_version, collection, country, kind, master_version, root, survey, year]
+    r: [country, year, survey, kind, collection, master_version, adaptation_version, root]
+    python: [country, year, survey, kind, collection, master_version, adaptation_version, root]
+  datalib_files:
+    stata: [adaptation_version, collection, country, kind, master_version, pattern, root, section, survey, year]
+    r: [country, year, survey, section, kind, collection, master_version, adaptation_version, root]
+    python: [country, year, survey, section, kind, collection, master_version, adaptation_version, pattern, root]
+  datalib_catalog:
+    stata: [clear, country, root]
+    r: [root, country]
+    python: [root]
+  datalib_load:
+    stata: [adaptation_version, clear, collection, country, debug, filename, kind, master_version, modules, nomerge, root, survey, year]
+    r: [country, year, survey, module, kind, collection, master_version, adaptation_version, filename, merge, root, verbose]
+    python: [country, year, survey, modules, collection, kind, master_version, adaptation_version, merge, columns, convert_categoricals, engine, root]
+  datalib_browse:
+    stata: [country, nodisplay, path, root]
+    r: [country, path, root]
+    python: [token, root]
+  datalib_create:
+    stata: [adaptation_version, collection, country, create, kind, master_version, root, survey, year]
+    r: [country, year, survey, kind, collection, master_version, adaptation_version, root, create]
+    python: [country, year, survey, kind, collection, master_version, adaptation_version, overwrite, dry_run, root]
+  datalib_map_drive:
+    stata: [config, discover, dryrun, force, letter, persistent, unc, user]
+    r: [letter, unc, user, config, persistent, force, dry_run]
+    python: [letter, unc, user, config, persistent, force, dry_run]
+
+# Stata-only commands. `datalib` is the interactive front door (not a
+# convergence target -- R and Python callers have namespaces instead);
+# getuserconfig and mapzdrive are the original names kept verbatim, and are
+# aliases of datalib_config / datalib_map_drive.
+stata_only:
+  # `update` and its modifiers are a Stata-only maintenance affordance, not a
+  # contract command: they are options on the legacy surface, NOT subcommands, so
+  # stata_subcommands stays exactly the 13 canonical commands.
+  datalib: [adaptation, clear, collection, country, data, debug, doc, filename, force, harmonization, install, latest, library, master, module, netsource, nomerge, path, programs, subfoldr, survey, update, va, vm, year]
+  getuserconfig: [config, configdir, edit, init, library, profile, replace, user]
+  mapzdrive: [config, discover, dryrun, force, letter, persistent, unc, user]
+
+# Canonical commands that are aliases of an original Stata command. The alias
+# keeps its own help page, so an option documented there counts as documented
+# for the canonical name too.
+aliases:
+  datalib_config: getuserconfig
+  datalib_map_drive: mapzdrive
+
+# Subcommands the `datalib` front door dispatches (datalib.ado `local subcmds`).
+# Must equal the 13 canonical commands with the datalib_ prefix removed.
+stata_subcommands: [resolve, load, catalog, countries, surveys, vintages, adaptations, files, create, config, root, browse, map_drive]
+
+# Package maintenance surface. NOT part of the contract: these report which
+# version of datalib you are running and where a newer one would come from, which
+# is an operational question about deployment, not about the folder grammar. Kept
+# out of `commands:` on purpose, so the canonical count stays 13 and
+# test_subcommands_are_exactly_the_canonical_commands keeps its meaning.
+#
+# The three legs differ by necessity, not by neglect:
+#   stata  -- an OPTION on the legacy surface (`datalib , update`), because Stata
+#             has no package manager; it reads the version net install recorded in
+#             PLUS/stata.trk and can reinstall in place.
+#   r      -- an exported function. It does NOT install: install.packages() over a
+#             loaded namespace is unsafe on Windows (the DLL is locked), so it
+#             prints the exact command instead.
+#   python -- an exported function. It does NOT install either: pip-installing a
+#             package while its own module is imported leaves the interpreter
+#             holding half-replaced modules.
+maintenance:
+  stata:
+    kind: option
+    on: datalib
+    options: [update, install, force, netsource]
+  r:
+    kind: function
+    name: datalib_update
+    args: [netsource, quiet]
+    installs: false
+  python:
+    kind: function
+    name: datalib_update
+    args: [netsource, quiet]
+    installs: false
+  # Where a newer version is looked for. All three read the same file, so one
+  # publish updates every leg.
+  version_manifest: VERSION
+  # Per-leg, because what each leg reads differs: Stata needs a net site with a
+  # stata.toc; R and Python read the shared VERSION manifest at the root.
+  default_netsource_stata: Z:/_pkg/datalib/stata
+  default_netsource_r: Z:/_pkg/datalib
+  default_netsource_python: Z:/_pkg/datalib
+
+# source_stage vocabulary (config/grammar.md section 7). Not every stage exists
+# in every language -- a Stata session global and an R option are not the same
+# mechanism -- so the per-language lists are declared separately.
+source_stage:
+  vocabulary: [argument, env, global, option, config_generic, config_package, unset, discovered]
+  stata: [argument, global, env, config_generic, config_package, unset, discovered]
+  r: [argument, env, option, config_generic, config_package, unset]
+  python: [argument, env, config_generic, config_package]

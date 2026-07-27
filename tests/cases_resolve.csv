@@ -1,0 +1,13 @@
+case_id,country,year,survey,kind,collection,master_version,adaptation_version,expect_error,expect_vintage_folder
+r01,ZWE,2019,MICS,master,,2,,,ZWE_2019_MICS_v02_M
+r02,ZWE,2019,MICS,adaptation,HLT,,,,ZWE_2019_MICS_v02_M_v01_A_HLT
+r03,ZWE,,,adaptation,HLT,,,,ZWE_2019_MICS_v02_M_v01_A_HLT
+r04,BRA,,PNAD,master,,,,,BRA_2015_PNAD_v10_M
+r05,zwe,2019,mics,master,,v02,,,ZWE_2019_MICS_v02_M
+r06,XXX,2019,MICS,master,,,,input,
+r07,KEN,,,adaptation,HLT,,,,KEN_2022_MICS_v01_M_v01_A_HLT
+r08,ZWE,2019,MICS,adaptation,IPUMS,,,,ZWE_2019_MICS_v02_M_v01_A_IPUMS
+r09,ZWE,2019,MICS,adaptation,GLAD,,,input,
+r10,ZWE,2019,LSMS,master,,,,input,
+r11,ZWE,2019,MICS,master,,1,,,ZWE_2019_MICS_v01_M
+r12,KEN,2014,DHS,adaptation,,,,,KEN_2014_DHS_v01_M_v01_A_HLT

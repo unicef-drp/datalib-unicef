@@ -1,0 +1,6 @@
+error_name,stata_rc,r_classes,python_exc
+input_invalid,198,datalib_error_input,InvalidArgumentError
+not_found,198 601,datalib_error_not_found datalib_error_input,NotFoundError
+config_file_missing,601,datalib_error_config_missing,ConfigFileNotFound
+user_block_missing,459,datalib_error_user_missing,UserBlockNotFound
+root_unset,198,datalib_error_root_unset datalib_error_input,DatalibRootNotSet
