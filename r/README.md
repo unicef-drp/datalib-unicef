@@ -10,29 +10,130 @@ bundled at `inst/collections.yml` and asserted by the test suite).
 ## Install from the UNICEF net site (Z:)
 
 The package is not on CRAN and the repository is private, so the LAN share is the
-supported install path:
+supported install path. **Note the `utils::` prefix** — it is not decoration, see
+below:
 
 ```r
-install.packages("Z:/_pkg/datalib/R/datalib_0.9.19.tar.gz",
-                 repos = NULL, type = "source")
+utils::install.packages("Z:/_pkg/datalib/R/datalib_0.9.28.tar.gz",
+                        repos = NULL, type = "source")
 ```
 
 A built source tarball is published per version, alongside a `VERSION` manifest that
-all three language legs read. `datalib_update()` prints the exact command for
-whatever version the site currently holds, so you do not have to track the filename.
-Previous versions stay available under `Z:/_pkg/datalib/<version>/R/` for rollback.
+all three language legs read. Previous versions stay available under
+`Z:/_pkg/datalib/<version>/R/` for rollback.
+
+### Why `utils::`, and what happens without it in RStudio
+
+Plain `install.packages()` **works** — the package installs correctly — but in
+**RStudio** it then throws a confusing error that looks like a failure and is not:
+
+```text
+* DONE (datalib)
+Error in file(con, "r") : cannot open the connection
+In addition: Warning messages:
+1: In packageDescription(pkgName, lib.loc = dirname(pkgPath)) :
+  no package 'datalib_0.9.27.tar.gz' was found
+2: In file(con, "r") :
+  cannot open file 'Z:/.../datalib_0.9.27.tar.gz/DESCRIPTION': No such file or directory
+```
+
+This is an RStudio bug, not a datalib one, and it fires on **any** single local-file
+install. RStudio hooks `utils::install.packages` to record where each package came
+from (`resources/app/R/Tools.R:2362`):
+
+```r
+isLocal <- is.null(repos) || any(grepl("/", pkgs, fixed = TRUE))
+if (isLocal) {
+   result <- eval(call, ...)                        # the real install -- succeeds
+   if (is.character(pkgs) && length(pkgs) == 1L)
+      .rs.recordPackageSource(pkgs, local = TRUE)   # <- handed the TARBALL path
+}
+```
+
+and `recordPackageSourceImpl` (`Tools.R:2078`) assumes that path is an *installed
+package directory*:
+
+```r
+pkgName <- basename(pkgPath)                                     # "datalib_0.9.27.tar.gz"
+pkgDesc <- packageDescription(pkgName, lib.loc = dirname(pkgPath))
+```
+
+`basename()` of a tarball is not a package name, and `<tarball>/DESCRIPTION` does not
+exist, so the bookkeeping fails *after* the install has already succeeded. The
+`utils::` prefix calls the real function directly and skips the hook — the same
+bypass RStudio documents on its neighbouring `remove.packages` hook ("Use
+`utils::remove.packages()` to bypass this hook if necessary").
+
+Diagnosed from `traceback()`, which is worth remembering as the first move on any
+post-install error like this:
+
+```text
+5: file(con, "r")
+4: readLines(descPath, warn = FALSE)
+3: .rs.recordPackageSourceImpl(pkgPath, db, local)
+2: .rs.recordPackageSource(pkgs, local = TRUE)
+1: install.packages(...)
+```
+
+Equivalent, and immune because it never enters R's console at all:
+
+```bash
+R CMD INSTALL "Z:/_pkg/datalib/R/datalib_0.9.28.tar.gz"
+```
+
+### Dependencies are not resolved for you
+
+`repos = NULL` installs *only* the tarball — unlike Stata's `net install`, which has
+no dependency concept because everything is in the `.pkg`. On a fresh machine, install
+the three `Imports` first or the first `library(datalib)` fails with a bare
+`there is no package called 'fs'`:
+
+```r
+install.packages(c("yaml", "haven", "fs"))
+```
+
+### `datalib_update()` reports; it does not install
+
+It tells you whether the site holds something newer and returns `status` as
+`"current"`, `"newer_available"`, `"source_behind"` or `"unknown"`. It deliberately
+does **not** install: `install.packages()` over a loaded namespace is unsafe on
+Windows, where the running session locks the package's own files. Run the install
+line yourself, then restart the session — the R equivalent of Stata's `discard`.
 
 ## Install
 
 ```r
 install.packages(c("yaml", "haven", "fs"))
-
-# from a clone, without installing:
-lapply(list.files("r/R", full.names = TRUE), source)
-
-# or install the subdirectory:
-remotes::install_github("unicef-drp/datalib-unicef", subdir = "r")
 ```
+
+**Option A: install the package** (from the public distribution repository):
+
+```r
+remotes::install_github("unicef-drp/datalib-unicef", subdir = "r")
+library(datalib)
+```
+
+**Option B: source from a clone, without installing.** Two things bite here, so the
+snippet is defensive rather than short:
+
+```r
+clone <- "C:/GitHub/mytasks/datalib-unicef"   # <- your clone, absolute
+
+src <- list.files(file.path(clone, "r", "R"), pattern = "[.]R$", full.names = TRUE)
+stopifnot(length(src) > 0)                    # fails loudly on a wrong path
+invisible(lapply(src, source))
+
+# The collection registry ships inside the package, so a sourced copy has to be
+# told where it is. Without this, anything taking collection= cannot resolve.
+options(datalib.collections.path = file.path(clone, "r", "inst", "collections.yml"))
+```
+
+Why not the one-liner `lapply(list.files("r/R", full.names = TRUE), source)`: with a
+relative path and the wrong working directory, `list.files()` returns `character(0)`,
+`lapply()` returns an empty list, **and nothing reports a problem** -- the next call
+then fails with `could not find function "datalib_resolve"`, which points at the
+wrong thing entirely. The `stopifnot()` turns a silent no-op into an error at the line
+that caused it.
 
 ## Use
 

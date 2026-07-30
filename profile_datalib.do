@@ -185,7 +185,7 @@ quietly {
   graph set window fontface "arial narrow"
 
   * Check for EduAnalyticsToolkit package
-  /* EDUKIT is the shortname of the the public repo EduAnalyticsToolkit.
+  /* EDUKIT is the shortname of the public repo EduAnalyticsToolkit.
      For info on the repo: https://github.com/worldbank/EduAnalyticsToolkit
      Though it is not required for calculating SDG_report_2023,
      having the package installed and up-to-date allows to generate automatic

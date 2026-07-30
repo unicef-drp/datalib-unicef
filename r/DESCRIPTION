@@ -1,11 +1,11 @@
 Package: datalib
 Title: Manage Versioned Survey Microdata Libraries
-Version: 0.9.19
+Version: 0.9.28
 Authors@R: c(
     person("Joao Pedro", "Azevedo", email = "jpazevedo@unicef.org", role = c("aut", "cre")))
 Description: Client for a standardized, versioned survey microdata library
     (masters and harmonized adaptations) organized as
-    <root>/<CCC>/<CCC>_<YYYY>_<SSSS>/<vintage>/Data/{Original,Stata,R}/.
+    <root>/<CCC>/<CCC>_<YYYY>_<SSSS>/<vintage>/Data/Original, Data/Stata and Data/R.
     Enumerates countries, surveys, vintages and adaptations; resolves paths;
     loads and merges survey modules from Stata .dta files. Part of a
     trilingual suite also available for 'Stata' and 'Python'.

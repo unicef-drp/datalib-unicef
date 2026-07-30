@@ -1,0 +1,26 @@
+ext,kind,why
+dta,describe,Stata's own format -- describe using rather than use so a click cannot replace data in memory
+DTA,describe,classification is case-insensitive because the archive mixes TJBR61FL.DTA with .dta
+dct,view,DHS dictionary -- plain text and readable beside the .dta it describes
+frq,view,DHS frequencies -- plain text
+frw,view,DHS frequency-with-values -- plain text
+map,view,DHS record map -- plain text and common in the archive
+as,view,SPSS syntax companion -- plain text
+var,view,variable list -- plain text
+ivd,view,SPSS data dictionary -- plain text
+sps,view,SPSS syntax -- plain text
+do,view,Stata do-file -- view rather than doedit so an archive cannot be edited by a stray click
+csv,view,plain text
+txt,view,plain text
+dat,view,plain text
+none,view,no extension at all -- the archive's extensionless files are fixed-width text extracts
+sav,open,SPSS binary -- read natively by neither leg here
+zip,open,archive -- nothing to show without extracting
+pdf,open,hand to the OS
+doc,open,hand to the OS
+docx,open,hand to the OS
+xls,open,hand to the OS
+xlsx,open,hand to the OS
+sas7bdat,open,SAS binary
+xpt,open,SAS transport
+bak,open,unknown backup -- no reason to guess it is text

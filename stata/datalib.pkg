@@ -1,7 +1,7 @@
 d DATALIB: UNICEF Microdata Library - Data Loading and Processing Utility
-d Version 0.9.19
+d Version 0.9.28
 d Author: Joao Pedro Azevedo (jpazevedo@unicef.org)
-d Date: 2026-07-26
+d Date: 2026-07-30
 d
 d Description:
 d   DATALIB is a comprehensive utility designed to facilitate the loading,
@@ -38,6 +38,10 @@ f src/d/datalib_resolve.ado
 f src/d/datalib_config.ado
 f src/d/datalib_root.ado
 f src/d/datalib_browse.ado
+f src/d/datalib_explorer.ado
+f src/d/datalib_explorer.sthlp
+f src/d/datalib_index.ado
+f src/d/datalib_index.sthlp
 f src/d/datalib_map_drive.ado
 f src/d/datalib_catalog.ado
 f src/d/datalib_countries.ado
@@ -65,6 +69,7 @@ f src/_/_adaptcheck.ado
 f src/_/_adaptcheck.sthlp
 f src/_/_dl_islib.ado
 f src/_/_dl_update.ado
+f src/_/_dl_fileaction.ado
 f src/_/_dl_islib.sthlp
 f src/_/_uc_init.ado
 f src/_/_uc_init.sthlp

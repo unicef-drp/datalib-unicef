@@ -1,6 +1,6 @@
 {smcl}
 {hline}
-{cmd:help datalib}{right:Version 0.9.19}
+{cmd:help datalib}{right:Version 0.9.26}
 {right:Authors: Joao Pedro Azevedo and Minh Cong Nguyen}
 {right:Date: 2026-07-26}
 {hline}
@@ -25,9 +25,9 @@ loading.{p_end}
 {cmd:countries}, {cmd:surveys}, {cmd:vintages}, {cmd:adaptations}, {cmd:files},
 {cmd:create}, {cmd:config}, {cmd:root}, {cmd:browse}, or {cmd:map_drive}.{p_end}
 
-{title:Description}
-{pstd}{cmd:datalib} is the interactive front end of the UNICEF Microdata Library. It
-dispatches each call to one of two modes, depending on how complete the request is:{p_end}
+{title:Description} {pstd}{cmd:datalib} is the interactive front end of the UNICEF
+Microdata Library. It dispatches each call to one of two modes, depending on how
+complete the request is:{p_end}
 
 {phang2}{bf:Interactive navigation.} A bare {cmd:datalib} opens a clickable country
 picker. {cmd:country()} alone -- or {cmd:country()} with only one of
@@ -51,35 +51,35 @@ folder and loads (and, for multiple modules, merges) the data. A load must also 
 {pstd}On the {bf:legacy (option-only) surface} -- a bare {cmd:datalib}, navigation, or a
 load -- the library is resolved before anything else, in this order:{p_end}
 
-{p 8 12 2}1. {cmd:library({it:path})} -- outranks everything else.{p_end}
-{p 8 12 2}2. {cmd:${datalib}} -- filled by {helpb getuserconfig} from the {cmd:datalib:}
-key of {it:~/.config/user_config.yml} (see {helpb getuserconfig} for the two-file search),
-then the {cmd:DATALIB_ROOT} environment variable.{p_end}
-{p 8 12 2}3. {bf:Discovery} -- only when nothing at all is configured: a library named
-{cmd:datalib} under {cmd:${zDrive}}, then {cmd:Z:/}.{p_end}
+{p 8 12 2}1. {cmd:library({it:path})} -- outranks everything else.{p_end} {p 8 12 2}2.
+{cmd:${datalib}} -- filled by {helpb getuserconfig} from the {cmd:datalib:} key of
+{it:~/.config/user_config.yml} (see {helpb getuserconfig} for the two-file search), then
+the {cmd:DATALIB_ROOT} environment variable.{p_end} {p 8 12 2}3. {bf:Discovery} -- only
+when nothing at all is configured: a library named {cmd:datalib} under {cmd:${zDrive}},
+then {cmd:Z:/}.{p_end}
 
 {pstd}A candidate may name {it:either} the library {it:or} the place holding it:
 {it:path}{cmd:/datalib} is tried first, then {it:path} itself. So {cmd:library(Z:/)} and
 {cmd:library(Z:/datalib)} both resolve to {cmd:Z:/datalib}, while a differently-named
-library such as {cmd:Z:/datalib-hlt} is used as given. Backslashes and trailing separators
-are normalized.{p_end}
+library such as {cmd:Z:/datalib-hlt} is used as given. Backslashes and trailing
+separators are normalized.{p_end}
 
 {pstd}A directory that exists but is {bf:not} a library is refused, so a missing library
 cannot quietly resolve to its parent -- whose subfolders would then be read as country
-codes. A library is a directory named {cmd:datalib}, or carrying a {cmd:.datalib} marker,
-or holding a {it:CCC}{cmd:/}{it:CCC}{cmd:_}{it:YYYY}{cmd:_}{it:SURVEY} pair (see
+codes. A library is a directory named {cmd:datalib}, or carrying a {cmd:.datalib}
+marker, or holding a {it:CCC}{cmd:/}{it:CCC}{cmd:_}{it:YYYY}{cmd:_}{it:SURVEY} pair (see
 {helpb _dl_islib}).{p_end}
 
 {pstd}A candidate that {it:is} set but is not a library -- a stale {cmd:library()},
-{cmd:${datalib}} or {cmd:DATALIB_ROOT} -- is an {bf:error} (rc 198) naming the path. It is
-never replaced by a discovered library: the substitution would be invisible afterwards.
-Nothing configured and nothing discovered is likewise rc 198, naming {cmd:library()} --
-rather than the bare {it:directory not found} that {helpb _foldernav} used to raise
-later.{p_end}
+{cmd:${datalib}} or {cmd:DATALIB_ROOT} -- is an {bf:error} (rc 198) naming the path. It
+is never replaced by a discovered library: the substitution would be invisible
+afterwards. Nothing configured and nothing discovered is likewise rc 198, naming
+{cmd:library()} -- rather than the bare {it:directory not found} that {helpb _foldernav}
+used to raise later.{p_end}
 
 {pstd}The resolved library is published to {cmd:${datalib}}, so it {bf:persists} for the
-rest of the session -- the clickable navigation links carry no {cmd:library()} option and
-must find the same library on the next call. Use {cmd:library()} again, or
+rest of the session -- the clickable navigation links carry no {cmd:library()} option
+and must find the same library on the next call. Use {cmd:library()} again, or
 {cmd:datalib root, root({it:path}) set}, to switch.{p_end}
 
 {pstd}The library is validated {bf:once per session}: the validated value is recorded in
@@ -92,23 +92,24 @@ If the library moves or is unmounted mid-session it is not re-diagnosed -- pass
 {pstd}{bf:One exception to all of the above.} Supplying {cmd:path()} {it:together with}
 {cmd:subfoldr()} bypasses resolution entirely: the path is used as given, is not tested
 for being a library, and is not published to {cmd:${datalib}}. This is the internal form
-the clickable navigation links use -- so if {cmd:${datalib}} is not already set, the links
-printed from such a call will not resolve.{p_end}
+the clickable navigation links use -- so if {cmd:${datalib}} is not already set, the
+links printed from such a call will not resolve.{p_end}
 
-{pstd}{bf:The subcommand form is different.} {cmd:datalib} {it:subcommand} hands the call
-straight to {cmd:datalib_}{it:subcommand}, which resolves its own root ({cmd:root()} ->
-{cmd:${datalib}} -> {cmd:DATALIB_ROOT}, exact, no descent and no discovery) and leaves
-{cmd:${datalib}} untouched. {cmd:library()} is not accepted by the root-taking wrappers --
-use {cmd:root()}: {cmd:datalib countries, root(Z:/datalib-hlt)}.{p_end}
+{pstd}{bf:The subcommand form is different.} {cmd:datalib} {it:subcommand} hands the
+call straight to {cmd:datalib_}{it:subcommand}, which resolves its own root
+({cmd:root()} -> {cmd:${datalib}} -> {cmd:DATALIB_ROOT}, exact, no descent and no
+discovery) and leaves {cmd:${datalib}} untouched. {cmd:library()} is not accepted by the
+root-taking wrappers -- use {cmd:root()}:
+{cmd:datalib countries, root(Z:/datalib-hlt)}.{p_end}
 
 {pstd}Three subcommands are deliberate exceptions to that rule.
 {cmd:datalib root, root({it:path}) set} {bf:writes} {cmd:${datalib}} -- that is how you
 switch library for the session. {cmd:datalib root, find} opts into the same disk
 resolution the legacy surface uses (container-or-library descent, then discovery).
-{cmd:datalib config} publishes the operator's globals and fills {cmd:${datalib}} from the
-{cmd:datalib:} key when it is unset; it also has its own, unrelated {cmd:library()}
-option, which names the value to {it:write into} the user config rather than a library to
-read -- see {helpb getuserconfig}.{p_end}
+{cmd:datalib config} publishes the operator's globals and fills {cmd:${datalib}} from
+the {cmd:datalib:} key when it is unset; it also has its own, unrelated {cmd:library()}
+option, which names the value to {it:write into} the user config rather than a library
+to read -- see {helpb getuserconfig}.{p_end}
 
 {pstd}{bf:The config chain is only read by the legacy surface.} A bare {cmd:datalib},
 navigation or a load fills {cmd:${datalib}} from the config file for you on first use;
@@ -117,14 +118,61 @@ with no startup {it:profile.do}, run {cmd:datalib config} once, or pass {cmd:roo
 before using the subcommand form.{p_end}
 
 {pstd}{cmd:datalib} is also the front door to the scriptable, language-neutral
-{cmd:datalib_*} wrapper family shared with the R and Python implementations: {cmd:datalib}
-{it:subcommand} dispatches to {cmd:datalib_}{it:subcommand} unchanged, so
+{cmd:datalib_*} wrapper family shared with the R and Python implementations:
+{cmd:datalib} {it:subcommand} dispatches to {cmd:datalib_}{it:subcommand} unchanged, so
 {cmd:datalib resolve, country(ZWE)} and {cmd:datalib_resolve, country(ZWE)} are the same
 call -- see {help datalib##subcommands:Subcommands} and {helpb datalib_api}.{p_end}
 
 {title:Options}
 {synoptset 27 tabbed}{...}
 {synopthdr:Options}
+{syntab:Arbitrary-tree navigation (see {help datalib##explorer:Exploring any folder})}
+{synopt:{opt explorer}}Walk any directory tree, whether or not it is a datalib library.
+Prints clickable folder links and returns the whole node in {cmd:r()}. Unlike every other
+navigation path here it does {it:not} read ancestry out of folder names, so it works on
+trees that were never named to the grammar. See
+{help datalib##explorer:Exploring any folder}.{p_end}
+{synopt:{opt path(string)}}With {opt explorer}: the node to open, relative to the tree
+root, used {bf:exactly} as given -- no case folding, no separator guessing. Omit it for
+the root.{p_end}
+{synopt:{opt files}}With {opt explorer}: accepted but redundant -- files are listed by
+default.{p_end}
+{synopt:{opt nofiles}}With {opt explorer}: list folders only. Files are shown by default
+because their names are fetched on every node anyway, so hiding them bought nothing and
+the "add files" hint could not be clicked.{p_end}
+{synopt:{opt sizes}}With {opt explorer}: also measure the files. Off by default because
+Stata cannot read a size without opening the file, and an open over a network share costs
+about 1.4 seconds regardless of the file's size -- a node with 200 files takes five
+minutes. Without it, {cmd:r(bytes)} is {cmd:-1}, meaning {it:not measured} rather than
+zero.{p_end}
+{synopt:{opt per:page(#)}}With {opt explorer}: show the files this many at a time, with
+clickable next/prev. Unlike {opt maxitems()} it slices only the display -- every count and
+list still describes the whole node.{p_end}
+{synopt:{opt page(#)}}With {opt explorer}: which page; default 1. Past the end it clamps.
+Written {cmd:perpage()} and {cmd:page()} in full.{p_end}
+{synopt:{opt maxitems(#)}}With {opt explorer}: cap both listings. Default 400.
+Guards against a directory with thousands of entries on a slow share.
+{cmd:r(n_dirs)} and {cmd:r(n_files)} stay the true totals; {cmd:r(bytes)} and the
+extension summary cover only what was listed, and {cmd:r(truncated)} says when that
+is a sample rather than the node.{p_end}
+
+{syntab:Recursive indexing (see {help datalib##index:Indexing a subtree})}
+{synopt:{opt index}}Walk a subtree recursively and return it as a {bf:dataset}, one row per
+file. Where {opt explorer} answers "what is in this folder", this answers "what is in this
+whole branch" -- and hands back something you can {helpb tabulate} or {helpb merge}.
+Replaces the data in memory, so it needs {opt clear}. See
+{help datalib##index:Indexing a subtree}.{p_end}
+{synopt:{opt dirs}}With {opt index}: emit a row per folder too, not only per file. Folders
+are traversed and counted either way.{p_end}
+{synopt:{opt maxn:odes(#)}}With {opt index}: stop after this many folders. Default 400,
+about two and a half minutes. Hitting it sets {cmd:r(truncated)} and says so.{p_end}
+{synopt:{opt maxd:epth(#)}}With {opt index}: stop descending past this depth; the children
+of the starting node are depth 1. {cmd:0} (default) means no limit.{p_end}
+{synopt:{opt pat:tern(string)}}With {opt index}: index only files matching this, e.g.
+{cmd:pattern(*.dta)}. Folders are always traversed, or nothing could be reached.{p_end}
+{synopt:{opt sav:ing(filename)}}With {opt index}: also write the index to disk; add
+{opt replace} to overwrite. Written as {cmd:saving()} in full.{p_end}
+
 {syntab:Package maintenance (see {help datalib##update:Updating})}
 {synopt:{opt update}}Check whether the net site this machine installed from holds a newer
 {cmd:datalib} than the one installed, and report three coordinates: the installed version,
@@ -205,9 +253,9 @@ latest adaptation of the requested collection under the chosen master.{p_end}
 unchanged. Matching is exact and lowercase (no abbreviations), so existing option-only
 calls are unaffected. The root-taking wrappers resolve the library root themselves
 ({cmd:root()} argument -> {cmd:${datalib}} -> {cmd:DATALIB_ROOT}); {cmd:config} and
-{cmd:map_drive} take no {cmd:root()}. All thirteen are documented in {helpb datalib_api};
-the two aliases additionally have their own pages, {helpb getuserconfig} and
-{helpb mapzdrive}.{p_end}
+{cmd:map_drive} take no {cmd:root()}. All thirteen are documented in
+{helpb datalib_api}; the two aliases additionally have their own pages,
+{helpb getuserconfig} and {helpb mapzdrive}.{p_end}
 
 {pstd}A first token that is {it:not} in the list below is never dispatched: it falls
 through to the option-only surface, which rejects it as a syntax error -- there is no
@@ -237,17 +285,16 @@ skeleton.{p_end}
 {helpb mapzdrive}.{p_end}
 {synoptline}
 
-{title:Merging}
-{pstd}When more than one module is loaded, modules are merged on the explicit keys of the
-collection registry, validated per module with {cmd:isid}: person-level modules chain
-{cmd:1:1} on the person keys, then household-level modules attach {cmd:m:1} on the
-household keys. A module whose keys do not uniquely identify its rows stops the merge with
-an actionable error (use {cmd:nomerge} to inspect modules singly). On every {bf:module}
-load -- master and adaptation alike -- the provenance columns {cmd:ctrycode} and
-{cmd:year} are added when absent and never overwritten. Loaders change nothing else. A
-{cmd:filename()} load is different: a named file has no registry module, so it is loaded
-exactly as stored -- no provenance columns are added and no merge keys are
-inferred.{p_end}
+{title:Merging} {pstd}When more than one module is loaded, modules are merged on the
+explicit keys of the collection registry, validated per module with {cmd:isid}:
+person-level modules chain {cmd:1:1} on the person keys, then household-level modules
+attach {cmd:m:1} on the household keys. A module whose keys do not uniquely identify its
+rows stops the merge with an actionable error (use {cmd:nomerge} to inspect modules
+singly). On every {bf:module} load -- master and adaptation alike -- the provenance
+columns {cmd:ctrycode} and {cmd:year} are added when absent and never overwritten.
+Loaders change nothing else. A {cmd:filename()} load is different: a named file has no
+registry module, so it is loaded exactly as stored -- no provenance columns are added
+and no merge keys are inferred.{p_end}
 
 {title:Subroutines}
 
@@ -255,14 +302,14 @@ inferred.{p_end}
 retained for the dispatcher; new code should prefer the {cmd:datalib_*} wrappers
 ({helpb datalib_api}).{p_end}
 
-{pstd}{help _foldernav}: interactive folder navigation (countries, surveys, vintages, and
-the DATA/DOC/PROGRAMS sections).{p_end}
+{pstd}{help _foldernav}: interactive folder navigation (countries, surveys, vintages,
+and the DATA/DOC/PROGRAMS sections).{p_end}
 
 {pstd}{help _dlw}: the loading, processing, and merging engine.{p_end}
 
 {pstd}{help _mkdir}: directory-structure creation for new deposits. Note {cmd:datalib}
-does {it:not} call it -- the creation path is {helpb datalib_create}, which issues its own
-{cmd:mkdir} calls; {cmd:_mkdir} is listed here only because it ships with the
+does {it:not} call it -- the creation path is {helpb datalib_create}, which issues its
+own {cmd:mkdir} calls; {cmd:_mkdir} is listed here only because it ships with the
 package.{p_end}
 
 {title:Return Macros}
@@ -275,11 +322,10 @@ forms, so a bare {cmd:datalib} issued between a navigation step and a
 {pstd}From {cmd:_dlw} (numbered per module/file loaded):{p_end}
 {pstd}{cmd:r(filename1)}, {cmd:r(filename2)}, ...: names of the files loaded.{p_end}
 {pstd}{cmd:r(data1)}, ...: full paths of data files loaded via
-{cmd:filename() data}.{p_end}
-{pstd}{cmd:r(doc1)}, ...: full paths of documents opened via {cmd:filename() doc}.{p_end}
-{pstd}{cmd:r(programs1)}, ...: full paths of program files opened via
-{cmd:filename() programs}.{p_end}
-{pstd}{cmd:r(harmonization)}: the resolved vintage folder name.{p_end}
+{cmd:filename() data}.{p_end} {pstd}{cmd:r(doc1)}, ...: full paths of documents opened
+via {cmd:filename() doc}.{p_end} {pstd}{cmd:r(programs1)}, ...: full paths of program
+files opened via {cmd:filename() programs}.{p_end} {pstd}{cmd:r(harmonization)}: the
+resolved vintage folder name.{p_end}
 
 {pstd}From {cmd:_foldernav}:{p_end}
 {pstd}{cmd:r(subfoldr)}: the current subfolder being navigated.{p_end}
@@ -293,18 +339,15 @@ sections).{p_end}
 {pstd}{cmd:r(ctrylist)}: list of unique country codes found in the directory.{p_end}
 {pstd}{cmd:r(ctrynumb)}: number of unique country codes found.{p_end}
 
-{pstd}{cmd:_svycheck} returns:{p_end}
-{pstd}{cmd:r(svylist)}: list of unique survey names found.{p_end}
-{pstd}{cmd:r(svynumb)}: number of unique surveys found (fixed to 1 when {cmd:survey()} is
-passed).{p_end}
-{pstd}{cmd:r(adptlist)}: list of unique adaptation collection names found.{p_end}
-{pstd}{cmd:r(adptnumb)}: number of unique adaptation collections found.{p_end}
-{pstd}{cmd:r(mastervintages)}, {cmd:r(masteradaptvintages)}, {cmd:r(adaptationvintages)}:
-vintage lists.{p_end}
+{pstd}{cmd:_svycheck} returns:{p_end} {pstd}{cmd:r(svylist)}: list of unique survey
+names found.{p_end} {pstd}{cmd:r(svynumb)}: number of unique surveys found (fixed to 1
+when {cmd:survey()} is passed).{p_end} {pstd}{cmd:r(adptlist)}: list of unique
+adaptation collection names found.{p_end} {pstd}{cmd:r(adptnumb)}: number of unique
+adaptation collections found.{p_end} {pstd}{cmd:r(mastervintages)},
+{cmd:r(masteradaptvintages)}, {cmd:r(adaptationvintages)}: vintage lists.{p_end}
 {pstd}{cmd:r(latestyear)}, {cmd:r(latestsurvey)}: latest survey year and name
-found.{p_end}
-{pstd}{cmd:r(multiplevintages)}, {cmd:r(mastercheck)}, {cmd:r(masteradaptcheck)},
-{cmd:r(adaptationcheck)}: presence flags.{p_end}
+found.{p_end} {pstd}{cmd:r(multiplevintages)}, {cmd:r(mastercheck)},
+{cmd:r(masteradaptcheck)}, {cmd:r(adaptationcheck)}: presence flags.{p_end}
 {pstd}{cmd:r(masterfiles)}, {cmd:r(masteradaptfiles)}, {cmd:r(mavintage)},
 {cmd:r(masterlatestfile)}, {cmd:r(masteradaptlatestfile)}: folder lists and combined
 master+adaptation vintage strings.{p_end}
@@ -360,6 +403,138 @@ inside it is found automatically.{p_end}
 {p 8 12}{cmd:. datalib load, country(ZWE) year(2019) survey(MICS) collection(HLT) modules(household adult children) clear}{p_end}
 {p 8 12}{stata "datalib catalog, clear" :. datalib catalog, clear}{p_end}
 
+{marker explorer}{...}
+{title:Exploring any folder}
+
+{pstd}{cmd:datalib , explorer} walks a directory tree that does {it:not} follow the
+naming grammar. {cmd:datalib_explorer} is the same command called directly.{p_end}
+
+{pstd}{bf:Why it is separate from} {helpb datalib_browse}{bf:.} Every other navigation
+path in this package reconstructs a folder's ancestry from its own {it:name}:
+{helpb _foldernav} counts underscores to rebuild
+{it:CCC}{cmd:/}{it:CCC}{cmd:_}{it:YYYY}{cmd:_}{it:SURVEY}{cmd:/}, and
+{helpb datalib_browse} does the same after uppercasing the path. That is right for the
+grammar, where a name encodes its parents, and useless anywhere else: a folder called
+{it:raw datasets} says nothing about which survey it belongs to.{p_end}
+
+{pstd}So {opt explorer} follows three different rules. Every link carries the {bf:full}
+relative path rather than reconstructing it. Casing is preserved -- Stata's {cmd:: dir}
+macro extension lowercases on Windows, returning {it:afghanistan} for {it:Afghanistan},
+so this reads the directory through Mata instead. And there is no library test at all:
+the only precondition is that the directory exists.{p_end}
+
+{pstd}{bf:A marker file is not a substitute.} Dropping a {cmd:.datalib} file into an
+arbitrary tree would satisfy {helpb _dl_islib} and let the ordinary navigation start --
+which would then compute wrong parent paths and follow them silently. Refusing to start
+is better than navigating to the wrong place.{p_end}
+
+{title:Examples}
+
+{p 8 12}{cmd:. datalib , explorer}{p_end}
+{p 8 12}{cmd:. datalib , explorer library(<staging-tree>)}{p_end}
+{p 8 12}{cmd:. datalib , explorer library(<staging-tree>) path(Afghanistan)}{p_end}
+{p 8 12}{cmd:. datalib_explorer , root(Z:/somewhere) path(a/b c/d) files sizes}{p_end}
+
+{title:Returned results}
+
+{pstd}The {cmd:r()} surface is as much the point as the display: it is enough to walk a
+tree programmatically, summarise it, or hand a path to {helpb _dlw}.{p_end}
+
+{synoptset 20 tabbed}{...}
+{p2col 5 20 24 2: Macros}{p_end}
+{synopt:{cmd:r(root)}}the tree root, as given{p_end}
+{synopt:{cmd:r(path)}}relative path of this node; empty at the root{p_end}
+{synopt:{cmd:r(fullpath)}}root and path joined, forward-slashed{p_end}
+{synopt:{cmd:r(parent)}}relative path of the parent; {cmd:.} at depth 1,
+empty at the root{p_end}
+{synopt:{cmd:r(dirs)}}child folders, each quoted, original casing{p_end}
+{synopt:{cmd:r(files)}}child files, each quoted, original casing{p_end}
+{synopt:{cmd:r(exts)}}distinct extensions among the files listed, lowercased,
+no dot; {cmd:none} for a file without one{p_end}
+{synopt:{cmd:r(largest)}}name of the largest file listed, when {opt sizes}
+was given{p_end}
+{p2colreset}{...}
+
+{synoptset 20 tabbed}{...}
+{p2col 5 20 24 2: Scalars}{p_end}
+{synopt:{cmd:r(depth)}}0 at the root{p_end}
+{synopt:{cmd:r(n_dirs)}}child folder count{p_end}
+{synopt:{cmd:r(n_files)}}child file count{p_end}
+{synopt:{cmd:r(bytes)}}total size of the files {it:listed}, or {cmd:-1} when
+{opt sizes} was not given{p_end}
+{synopt:{cmd:r(largest_bytes)}}size of the largest file, or {cmd:-1}{p_end}
+{synopt:{cmd:r(n_exts)}}distinct extensions among the files listed{p_end}
+{synopt:{cmd:r(is_empty)}}1 when the node holds neither folders nor files{p_end}
+{synopt:{cmd:r(truncated)}}1 when {it:either} listing hit {opt maxitems()}{p_end}
+{synopt:{cmd:r(listed)}}1 when the files were displayed, 0 under {opt nofiles}{p_end}
+{synopt:{cmd:r(page)}}the page shown, after clamping{p_end}
+{synopt:{cmd:r(n_pages)}}how many pages the listing has{p_end}
+{synopt:{cmd:r(looks_grammar)}}1 when this node's own name parses as
+{it:CCC}{cmd:_}{it:YYYY}{cmd:_}{it:SURVEY}{p_end}
+{p2colreset}{...}
+
+{pstd}{bf:File names are clickable.} A {cmd:.dta} click runs {cmd:describe using} -- not
+{cmd:use}, because clicking a name should not silently replace your data. Text companions
+({cmd:.dct} {cmd:.frq} {cmd:.frw} {cmd:.map} {cmd:.sps}) open in the viewer, and anything
+Stata cannot read is handed to the operating system. See {helpb datalib_explorer} for the
+full dispatch and the one case that is deliberately not linked.{p_end}
+
+{pstd}{cmd:r(dirs)} and {cmd:r(files)} are quoted element by element because folder
+names contain spaces -- a fifth of the top-level folders in the staging tree do -- and an
+unquoted space-delimited macro would split them. Read them back with
+{cmd:foreach d of local dirs}.{p_end}
+
+{pstd}{bf:What} {opt maxitems()} {bf:does and does not truncate.} {cmd:r(n_dirs)} and
+{cmd:r(n_files)} are always the {it:true} totals for the node; {cmd:r(dirs)} and
+{cmd:r(files)} are capped; and everything else describes the files actually listed, so
+it always agrees with {cmd:r(files)}. Check {cmd:r(truncated)} before treating
+{cmd:r(bytes)} as a total for the node. An earlier version of this command got that
+wrong in the dangerous direction -- it summed only the first {opt maxitems()} files
+while {cmd:r(n_files)} reported the true total and {cmd:r(truncated)} stayed 0, so a
+caller walking a tree and adding up {cmd:r(bytes)} got a quietly short number.{p_end}
+
+{pstd}{cmd:r(bytes)} returning {cmd:-1} rather than {cmd:0} is deliberate. Zero is a
+real answer for a node with no files, and a caller has to be able to tell {it:no bytes}
+from {it:not measured}.{p_end}
+
+{pstd}{cmd:r(looks_grammar)} is the useful one for a migration: in a tree where some
+branches have been renamed to the convention and others have not, it separates them
+without a second pass.{p_end}
+
+{marker index}{...}
+{title:Indexing a subtree}
+
+{pstd}{cmd:datalib , index} walks a subtree recursively and returns it as a
+{bf:dataset}. {cmd:datalib_index} is the same command called directly, and its help page
+carries the full option list and the measured costs.{p_end}
+
+{pstd}{bf:Why it is separate from} {opt explorer}{bf:.} {opt explorer} answers "what is
+in {it:this} folder" and returns {cmd:r()}. That is right for browsing and wrong for
+work: reaching one file five levels down takes five calls, and what you have at the end
+is a display. {cmd:r()} could not hold the answer anyway -- a macro cannot carry 2,548
+rows. So {opt index} pays the walk once and gives you data.{p_end}
+
+{pstd}{bf:It is slow, and that is the share, not the code.} Measured on the staging
+tree: about {bf:0.35 seconds per folder}, near-constant across subtrees of very
+different size -- a large branch in about nine minutes, a mid-sized branch faster still, a small branch faster again. A single bulk
+enumeration is no faster: {cmd:Get-ChildItem -Recurse} took 538 s on the same subtree
+and found the same folders and files. There is no fast path from one thread.{p_end}
+
+{pstd}So the whole 193-country tree is a six-to-eight hour walk. {opt maxnodes()}
+therefore defaults to 400 rather than infinity, and hitting the cap is {bf:announced}:
+the dataset is a prefix of the subtree and {cmd:r(truncated)} says so. For whole-archive
+work use the scheduled catalogue under {cmd:<catalogue>}, which pays the same cost in
+parallel and off-hours and stores checksums this command does not compute.{p_end}
+
+{title:Examples}
+
+{p 8 12}{cmd:. datalib , index library(<staging-tree>) path(Afghanistan) clear}{p_end}
+{p 8 12}{cmd:. tabulate ext , sort}{p_end}
+{p 8 12}{cmd:. datalib , index path(Brazil) pattern(*.dta) clear}{p_end}
+{p 8 12}{cmd:. datalib , index path(India) maxdepth(2) dirs clear}{p_end}
+
+{pstd}See {helpb datalib_index} for the variables created and the stored results.{p_end}
+
 {marker update}{...}
 {title:Updating}
 
@@ -386,6 +561,29 @@ here, and the two records are ranked by {bf:recency, not by version number}: a
 higher number does not win, because a deliberate downgrade performed with plain
 {cmd:net install} would then be invisible, and not hiding downgrades is the whole
 point of this command.{p_end}
+
+{pstd}{bf:It also reports what this session is actually executing.} Everything above
+is read from {it:disk}, and so is {helpb which:which datalib}. Stata compiles an
+ado-file into memory the first time it is used, and {cmd:net install} replaces the file
+without invalidating that, so after installing,
+{bf:the session keeps running the old code} until you {helpb discard}.
+Every indicator you have would nonetheless report the
+new version. Demonstrated rather than assumed: write a one-line package at {cmd:v1}, run
+it, overwrite the file at {cmd:v2}, and {cmd:which} reports {cmd:v2} while the program
+still prints {cmd:v1}.{p_end}
+
+{pstd}So {cmd:datalib.ado} carries its version a second time, as a literal compiled into
+the file, and passes it to the check. When that literal and the version on disk
+disagree, a {cmd:running} line is printed and {cmd:r(stale)} is 1. The two copies of the
+version are a real duplicate -- reading the {cmd:*!} stamp at run time would mean
+reading the disk file, which is the very thing being compared against -- so a test pins
+the literal to the package version. A warning that fired when nothing was wrong would be
+worse than none at all.{p_end}
+
+{pstd}This is a different failure from the one in the next paragraph. That one is about
+{it:place}: the adopath resolving {cmd:datalib} somewhere other than the copy being
+reported on. This one is about {it:time}: the right file, loaded before it was
+replaced.{p_end}
 
 {pstd}{bf:It also checks that it is describing the copy you will run.} All of the
 above concerns the package in {cmd:PLUS}, which is where {cmd:net install} always
@@ -448,7 +646,7 @@ design is written up in an unpublished working draft (Azevedo and Nguyen), kept 
 {it:paper/} in the canonical repository.{p_end}
 
 {title:Version}
-{p 4 4 2}0.9.19{p_end}
+{p 4 4 2}0.9.20{p_end}
 
 {title:Date}
 {p 4 4 2}2026-07-26{p_end}
@@ -483,7 +681,7 @@ Unpublished working draft; not submitted or forthcoming. Kept in {it:paper/} in
 {cmd:jpazvd/datalib-dev}.{p_end}
 
 {title:Version History}
-{p 4 4 2}v0.9.1 to v0.9.18 (2026-07-25/26): {cmd:datalib , update} checks the net
+{p 4 4 2}v0.9.1 to v0.9.20 (2026-07-25/27): {cmd:datalib , update} checks the net
 site this machine installed from, reports installed-versus-published, and refuses to
 downgrade; the library is validated once per session ({cmd:${datalib_checked}}); the
 click-state survives root resolution; and the help pages were corrected against the
@@ -491,9 +689,9 @@ code (several options had documented behaviour the engine does not implement). F
 detail in {it:CHANGELOG.md}.{p_end}
 
 {p 4 4 2}v0.9.0 (2026-07-25): {cmd:datalib} {it:subcommand} dispatch to the contract v1
-{cmd:datalib_*} wrappers; {cmd:library()} option; the legacy surface resolves the library
-up front in {cmd:find} mode (container-or-library, structural library test, discovery only
-when nothing is configured) with an actionable error instead of a later
+{cmd:datalib_*} wrappers; {cmd:library()} option; the legacy surface resolves the
+library up front in {cmd:find} mode (container-or-library, structural library test,
+discovery only when nothing is configured) with an actionable error instead of a later
 {it:directory not found}.{p_end}
 
 {p 4 4 2}v0.7.0 (2026-07-10): Package root moved to {it:stata/}; {cmd:_dlw} engine
@@ -502,8 +700,8 @@ defaults, exact case-normalized matching, master loading); contract v1 {cmd:data
 wrapper API added (see {helpb datalib_api}). Full history: {it:CHANGELOG.md} in the
 repository.{p_end}
 
-{p 4 4 2}v0.2 (2024-12-19): Refactored {cmd:_foldernav} into a standalone program file to
-resolve a command recognition issue.{p_end}
+{p 4 4 2}v0.2 (2024-12-19): Refactored {cmd:_foldernav} into a standalone program file
+to resolve a command recognition issue.{p_end}
 
 {p 4 4 2}v0.1 (2024-08-18): Initial release with interactive folder navigation and data
 loading utilities.{p_end}

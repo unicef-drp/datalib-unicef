@@ -9,11 +9,12 @@ copy is bundled inside the package and asserted by the test suite).
 
 ## Install from the UNICEF net site (Z:)
 
-The package is not on PyPI and the repository is private, so the LAN share is the
-supported install path:
+The package is not on PyPI yet (see the publication issue). Two supported paths: the
+LAN share, and -- since the public distribution repository went live -- the wheel
+attached to its GitHub release.
 
 ```bash
-pip install --upgrade "Z:/_pkg/datalib/python/unicef_datalib-0.9.19-py3-none-any.whl"
+pip install --upgrade "Z:/_pkg/datalib/python/unicef_datalib-0.9.28-py3-none-any.whl"
 ```
 
 A built **wheel** is published per version -- deliberately, not a source tree: this
@@ -22,12 +23,26 @@ source install would try to fetch a build backend. A wheel needs none.
 `datalib_update()` prints the exact command for whatever version the site holds.
 Previous versions stay under `Z:/_pkg/datalib/<version>/python/` for rollback.
 
-## Install
+## Install from a clone
 
+```bash
+# From the python/ subdirectory of the clone -- pip resolves "." against the CWD,
+# so run it there or give the path explicitly.
+cd C:/GitHub/mytasks/datalib-unicef/python
+pip install --user .              # or: pip install --user "<clone>/python"
+pip install --user ".[fidelity]"  # optional pyreadstat engine (C extension)
 ```
-pip install --user .            # from this directory
-pip install --user .[fidelity]  # optional pyreadstat engine (C extension)
+
+To run **without installing**, put `src/` on the path -- the equivalent of R's
+source-from-clone route:
+
+```bash
+set PYTHONPATH=C:/GitHub/mytasks/datalib-unicef/python/src   # Windows
+python -c "import datalib; print(datalib.__version__)"
 ```
+
+Unlike the R leg this needs no registry option: `collections.yml` sits inside the
+package directory, so an import from `src/` finds it.
 
 Pure wheel, no console-script entry points (AppLocker blocks unsigned `.exe`
 shims) — the CLI is `python -m datalib`.
