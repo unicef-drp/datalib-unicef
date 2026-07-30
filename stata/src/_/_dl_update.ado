@@ -1,7 +1,7 @@
 *******************************************************
 ** _dl_update
 * Joao Pedro Azevedo and Minh Cong Nguyen
-*! Version: 0.9.19      Date: <2026-07-26>
+*! Version: 0.9.23      Date: <2026-07-29>
 *******************************************************
 * Compare the INSTALLED datalib against the net site it came from, and
 * optionally reinstall from there. Backs -datalib , update-.
@@ -161,7 +161,7 @@ program define _dl_update, rclass
 
     version 15
 
-    syntax [, NETsource(string) INSTALL FORCE ]
+    syntax [, NETsource(string) INSTALL FORCE RUNNING(string) ]
 
     quietly {
         *----------------------------------------------------------------------
@@ -386,6 +386,23 @@ program define _dl_update, rclass
         }
 
         *----------------------------------------------------------------------
+        * 4c. is this SESSION running what is on disk?
+        *
+        * Distinct from `shadowed', which is about the adopath resolving datalib
+        * somewhere other than PLUS. This is about time: the right file, loaded
+        * before it was replaced. Stata compiles an ado into memory on first use and
+        * -net install- does not invalidate that, so the two diverge silently.
+        *
+        * running() is the caller's OWN compiled-in version. Empty means the front
+        * door predates this check or _dl_update was called directly, and then there
+        * is nothing to compare -- report nothing rather than guess.
+        *----------------------------------------------------------------------
+        local stale 0
+        if (`"`running'"'!="") & (`"`instver'"'!="") & (`"`instver'"'!="unknown") {
+            local stale = (`"`running'"'!=`"`instver'"')
+        }
+
+        *----------------------------------------------------------------------
         * 5. report
         *----------------------------------------------------------------------
         noi di as txt _n "{hline 68}"
@@ -394,6 +411,20 @@ program define _dl_update, rclass
         noi di as txt "  installed      : " as res `"`instver'"' ///
                       as txt "   (in `plus')" ///
                       as txt cond(`skew', "  [from this command's own record]", "")
+        if (`stale') {
+            * One display class for the whole line, on purpose. -quietly- suppresses
+            * as-txt and as-res output but lets as-err through, so a line that MIXED
+            * them rendered as "running        :    (in memory - NOT what is on disk)"
+            * under -quietly datalib, update- -- label and warning intact, version
+            * silently dropped. A half-rendered warning is worse than none: it names a
+            * problem and withholds the number the reader needs. All as-err means the
+            * line either appears whole or not at all.
+            noi di as err "  running        : `running'   (in memory - NOT what is on disk)"
+            noi di as txt "                   Stata compiled datalib into memory before"
+            noi di as txt "                   the files were replaced, and keeps using that"
+            noi di as txt "                   copy. Run {bf:discard} -- until then the"
+            noi di as txt "                   version above is the one you are running."
+        }
         if (`shadowed') {
             noi di as err "  running code   : " `"`runfrom'"'
             noi di as txt "                   That is NOT the installed copy. The adopath"
@@ -446,6 +477,12 @@ program define _dl_update, rclass
         }
         else if ("`status'"=="current") {
             noi di as txt _n "  Up to date - installed and net site are both `instver'."
+            * "Up to date" is a claim about the two RECORDS, and a reader takes it as
+            * a claim about their session. Say which one it is when they differ.
+            if (`stale') {
+                noi di as txt "  On disk, that is. This session is still running " ///
+                              as res `"`running'"' as txt " - run {bf:discard}."
+            }
         }
         else if ("`status'"=="source_behind") {
             noi di as err _n "  The net site is OLDER than what you have installed."
@@ -571,6 +608,8 @@ program define _dl_update, rclass
         return local remembered_version `"`memver'"'
         return local version_from     "`vsrc'"
         return local running_from     `"`runfrom'"'
+        return local running          `"`running'"'
+        return scalar stale           = `stale'
         return scalar shadowed        = `shadowed'
         return local status           "`status'"
         return scalar migrated        = `migrated'

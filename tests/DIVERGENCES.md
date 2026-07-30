@@ -86,3 +86,37 @@ carries valid keys and pins the **intended** behavior.
 ---
 
 [← datalib README](../README.md) · [Documentation hub](../docs/README.md)
+
+## explorer and index: ported, with one half that cannot port
+
+`datalib_explorer` and `datalib_index` were Stata-only from 0.9.21 and 0.9.24. As of
+**0.9.27 both exist in all three legs**, so they are no longer a divergence in
+*capability*. What remains is a divergence in *product*, and it is not closeable:
+
+| | Stata | R | Python |
+|---|---|---|---|
+| `index` | dataset | data.frame | DataFrame |
+| `explorer` data | `r()` | list | `ExplorerNode` |
+| `explorer` **display** | clickable SMCL | — | — |
+
+Stata's `explorer` prints a listing whose folder and file names are hyperlinks: a folder
+re-runs the command one level down, a `.dta` runs `describe using`, a text companion opens
+in the viewer, anything else is handed to the OS. There is no console hyperlink in R or
+Python, so that half has no equivalent and no shim is offered — pretending otherwise would
+mean printing text that looks clickable and is not.
+
+What ports is the data, which was always the substantive half; the Stata help has always
+described its `r()` surface as "as much the point as the display". Where a Stata user clicks
+a folder, an R or Python caller passes a longer `path`, which the returned `dirs` supports
+directly. The file-type dispatch behind the hyperlinks is reported as `open_with` (R,
+Python) so a caller can act on it without reimplementing it, and that classification is
+pinned across all three legs by `tests/cases_filekind.csv` — one corpus, read by every
+suite, rather than three hand-typed copies free to drift.
+
+Neither function is in `config/surface.yml`'s `commands:` block, and deliberately: that
+block is asserted to be exactly the 13 canonical contract commands, and both
+`test_subcommands_are_exactly_the_canonical_commands` and the R export test take their
+meaning from its membership. They are declared alongside `maintenance` instead, and both
+the R and Python surface tests now accept any such block generically, so the next
+non-contract function needs no test edit.
+

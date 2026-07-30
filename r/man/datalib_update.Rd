@@ -8,7 +8,7 @@ datalib_update(netsource = NULL, quiet = FALSE)
 }
 \arguments{
 \item{netsource}{Directory holding the published \code{VERSION} manifest. When
-\code{NULL}, the option, then the environment variable, then \verb{Z:/_statapkg}.}
+\code{NULL}, the option, then the environment variable, then \verb{Z:/_pkg/datalib}.}
 
 \item{quiet}{When \code{TRUE}, return the result without printing the report.}
 }
@@ -41,12 +41,12 @@ The net site is the only place a version can be discovered.
 
 The net site is resolved in this order: the \code{netsource} argument, then
 \code{options(datalib.netsource=)}, then the \code{DATALIB_NETSOURCE} environment
-variable, then \verb{Z:/_statapkg}.
+variable, then \verb{Z:/_pkg/datalib}.
 }
 \examples{
 \dontrun{
 datalib_update()
-datalib_update(netsource = "Z:/_statapkg")
+datalib_update(netsource = "Z:/_pkg/datalib")
 r <- datalib_update(quiet = TRUE)
 r$status
 }

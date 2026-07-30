@@ -89,7 +89,13 @@ stata_only:
   # `update` and its modifiers are a Stata-only maintenance affordance, not a
   # contract command: they are options on the legacy surface, NOT subcommands, so
   # stata_subcommands stays exactly the 13 canonical commands.
-  datalib: [adaptation, clear, collection, country, data, debug, doc, filename, force, harmonization, install, latest, library, master, module, netsource, nomerge, path, programs, subfoldr, survey, update, va, vm, year]
+  datalib: [adaptation, clear, collection, country, data, debug, dirs, doc, explorer, filename, files, force, harmonization, index, install, latest, library, master, maxdepth, maxitems, maxnodes, module, netsource, nofiles, nomerge, page, path, pattern, perpage, programs, replace, saving, sizes, subfoldr, survey, update, va, vm, year]
+  # The standalone command. `explorer` is absent: that flag exists only on the
+  # legacy `datalib ,` surface, to select this command.
+  datalib_explorer: [files, maxitems, nofiles, page, path, perpage, root, sizes]
+  # The recursive indexer. `index' is absent for the same reason `explorer' is:
+  # that flag exists only on the legacy `datalib ,' surface, to select this command.
+  datalib_index: [clear, dirs, maxdepth, maxnodes, path, pattern, replace, root, saving, sizes]
   getuserconfig: [config, configdir, edit, init, library, profile, replace, user]
   mapzdrive: [config, discover, dryrun, force, letter, persistent, unc, user]
 
@@ -103,6 +109,89 @@ aliases:
 # Subcommands the `datalib` front door dispatches (datalib.ado `local subcmds`).
 # Must equal the 13 canonical commands with the datalib_ prefix removed.
 stata_subcommands: [resolve, load, catalog, countries, surveys, vintages, adaptations, files, create, config, root, browse, map_drive]
+
+# Arbitrary-tree navigation. NOT part of the contract, and Stata-only.
+#
+# Every other navigation path in this package reads ancestry out of the folder NAME:
+# _foldernav counts underscores to rebuild CCC/CCC_YYYY_SURVEY/, and datalib_browse
+# does the same after upper()-ing the path. That works only because the grammar
+# encodes a folder's parents in its own name.
+#
+# `explorer` exists for trees where it does not. <staging-tree> holds
+# tens of thousands of files under names like "afghanistan/2010 sdhs/raw datasets" -- hundreds of gigabytes, more
+# than half the archive by volume, and none of it addressable by any existing
+# navigation. A .datalib marker would get such a tree past _dl_islib and then
+# navigate to the wrong places silently, which is worse than refusing.
+#
+# Three rules follow from that, and each is the difference from `browse`:
+#   1. every link carries the FULL relative path; nothing is reconstructed
+#   2. casing is preserved (_uc_dirs via Mata dir(), not `: dir` which lowercases)
+#   3. no upper(), no underscore parsing, no _dl_islib gate -- only "does it exist"
+#
+# Stata-only because its product is clickable SMCL. It is also exposed as an option
+# on the legacy surface (datalib, explorer) so it can be reached without the
+# subcommand form, mirroring how `update` is an option rather than a subcommand.
+explorer:
+  stata:
+    # A standalone command AND an option on the legacy surface -- but NOT a
+    # dispatcher subcommand. stata_subcommands is the 13 canonical contract commands
+    # and test_subcommands_are_exactly_the_canonical_commands takes its meaning from
+    # that count, so a 14th entry there would quietly destroy the guard. Same
+    # treatment as `update`.
+    #
+    # No `options:` here on purpose. The enforced lists live in `stata_only` --
+    # `datalib_explorer` for the standalone command, `datalib` for the option form --
+    # and a second copy in this descriptive block would be free to drift from the
+    # copy the tests actually read.
+    kind: command_and_option
+    command: datalib_explorer
+    "on": datalib
+  # Ported in 0.9.27. The DISPLAY does not port -- there is no console hyperlink in R or
+  # Python -- but the data does, and the Stata help always called the r() surface "as much
+  # the point as the display". Where a Stata user clicks a folder, an R or Python caller
+  # passes a longer path, which the returned dirs supports. The file-type dispatch behind
+  # the Stata hyperlinks is reported as open_with so callers need not reimplement it.
+  r:
+    kind: function
+    name: datalib_explorer
+    args: [path, root, sizes, max_items]
+  python:
+    kind: function
+    name: datalib_explorer
+    args: [path, root, sizes, max_items]
+
+# Recursive indexing. NOT part of the contract, and Stata-only.
+#
+# explorer answers "what is in THIS folder" and returns r(). index walks a whole subtree
+# and returns a DATASET. The split is not stylistic: reaching one file five levels down
+# takes five explorer calls and leaves you with a display, and r() cannot hold 2,548 rows.
+#
+# The cost decides the defaults. Measured on <staging-tree>: 0.35 s per FOLDER,
+# near-constant (Spain a large branch / about nine minutes; a small branch in well under a minute; a mid-sized branch in about a minute).
+# That is SMB round-trip latency, not this code: PowerShell Get-ChildItem -Recurse took
+# 538 s on the same subtree for the same folders. So there is no fast path from one
+# thread, the whole 193-country tree is a 6-8 hour walk, maxnodes() defaults to 400, and
+# the cap is ANNOUNCED. Whole-archive work belongs in the scheduled <catalogue>
+# catalogue, which pays the same cost in parallel and off-hours.
+index:
+  stata:
+    # Standalone command AND an option on the legacy surface, but NOT a dispatcher
+    # subcommand -- same treatment as explorer and update, and for the same reason:
+    # stata_subcommands is the 13 canonical contract commands and the surface guard takes
+    # its meaning from that count. Enforced option lists live in stata_only.
+    kind: command_and_option
+    command: datalib_index
+    "on": datalib
+  # Ported in 0.9.27, and this one ports WHOLE: all three legs return a table with the same
+  # columns and the same meanings, which is what lets one set of cases check all three.
+  r:
+    kind: function
+    name: datalib_index
+    args: [path, root, max_nodes, max_depth, dirs, sizes, pattern, verbose]
+  python:
+    kind: function
+    name: datalib_index
+    args: [path, root, max_nodes, max_depth, dirs, sizes, pattern, verbose]
 
 # Package maintenance surface. NOT part of the contract: these report which
 # version of datalib you are running and where a newer one would come from, which
@@ -123,7 +212,7 @@ stata_subcommands: [resolve, load, catalog, countries, surveys, vintages, adapta
 maintenance:
   stata:
     kind: option
-    on: datalib
+    "on": datalib
     options: [update, install, force, netsource]
   r:
     kind: function

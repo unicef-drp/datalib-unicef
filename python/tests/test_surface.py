@@ -176,6 +176,36 @@ def test_python_signature_matches_the_declaration(command: str) -> None:
     )
 
 
+def test_declared_non_contract_functions_match_their_declaration() -> None:
+    """Blocks outside ``commands:`` are declarations too, not prose.
+
+    ``maintenance``, ``explorer`` and ``index`` are deliberately not in ``commands:``:
+    that block is asserted to be exactly the 13 canonical contract commands, and both
+    :func:`test_subcommands_are_exactly_the_canonical_commands` and the R export test
+    take their meaning from its membership. Adding entries there would push the
+    canonical count to 15 and quietly destroy both guards.
+
+    Collected generically, so a function added to ``surface.yml`` later is enforced
+    without editing this test.
+    """
+    checked = 0
+    for name, block in SURFACE.items():
+        if not isinstance(block, dict):
+            continue
+        decl = block.get("python")
+        if not isinstance(decl, dict) or "name" not in decl or "args" not in decl:
+            continue
+        fn = getattr(dl, decl["name"], None)
+        assert fn is not None, f"{name}: {decl['name']} is declared but not exported"
+        actual = list(inspect.signature(fn).parameters)
+        assert actual == list(decl["args"]), (
+            f"{name}: {decl['name']} signature {actual} != declared {decl['args']}"
+        )
+        checked += 1
+    # A loop that silently checked nothing would pass forever.
+    assert checked >= 2, f"expected at least explorer and index, checked {checked}"
+
+
 def test_python_exports_the_declared_commands() -> None:
     for command in COMMANDS:
         assert hasattr(dl, command), f"{command} is declared but not exported"
