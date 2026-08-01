@@ -245,6 +245,44 @@ Enumeration wrappers return word lists + counts: `r(countries)`+`r(n)`;
   (see CHANGELOG.md for the current version and history).
 - Full contributor rules: [CONTRIBUTING.md](../CONTRIBUTING.md).
 
+### PR protocol: review Copilot's comments before merging
+
+**A green check is not a review.** Copilot's automated review posts *inline comments*
+that report no status of their own — CI can be entirely green while unread findings sit
+on the diff. Merging without reading them is not a judgement that they were wrong; it is
+not having looked.
+
+Before merging any PR, in this order:
+
+1. **Fetch the comments.** They are not in `gh pr view`:
+
+   ```bash
+   gh api "repos/<owner>/<repo>/pulls/<n>/comments" \
+     -q '.[]|"--- \(.user.login)  \(.path):\(.line//.original_line)\n\(.body)\n"'
+   ```
+
+   Check the *base* PR and the release PR separately — `dev` → `main` gets its own
+   review, and it has caught things the feature PR did not.
+
+2. **Disposition every comment**, one of three ways, in the CHANGELOG entry or a PR
+   reply: **accepted** (fixed), **accepted with a correction to the finding** (the defect
+   is real, the diagnosis is not — say what actually broke), or **rejected with the
+   measurement that rejects it**. Never rejected on plausibility: 0.9.29 rejected two
+   `max_depth` findings by *running* a four-level tree, and 0.9.32 upheld one whose named
+   PR was wrong but whose defect was real.
+
+3. **Do not merge with unaddressed comments**, including on the release PR.
+
+Why this is written down: the 0.9.31 release merged **nine inline comments across six
+PRs, unread**. One of them was the release's most consequential defect — withholding
+`test_stamps.py` from the public tree dropped two checks that needed no git history and
+guarded what `which datalib` reports to whoever installed it. CI could not catch it, by
+construction: the tests were gone, and an absent test reports nothing. The reviewer that
+did catch it had said so on the diff, twice, before either PR merged.
+
+The bot is wrong often enough that step 2 has three outcomes rather than two — but
+"often wrong" is an argument for reading it, not for skipping it.
+
 ## Plans & history
 
 - internal/REORGANIZATION.md — the executed

@@ -3,30 +3,122 @@
 All notable changes to **datalib-unicef**. Versioning follows [SemVer](https://semver.org/);
 commits follow Conventional Commits.
 
+## [0.9.32] — 2026-08-01
+
+Everything here comes from Copilot's review comments on the 0.9.31 PRs — nine inline
+comments across six PRs, **all of them merged past unread**. Reviewing them is now part of
+the PR protocol (`.github/copilot-instructions.md` §PR protocol) rather than something done
+when someone remembers to ask.
+
+### Withholding one test cost three (accepted, and the important one)
+
+0.9.31 excluded `python/tests/test_stamps.py` from the public distribution because the
+history question it asks cannot be answered in a generated repository. That file held
+**three** tests, and only one needed git history. The other two —
+
+- the front-door `*!` stamp `==` VERSION, which `which datalib` reads off disk, and
+- the `local RUNNING` literal `==` VERSION, which `_dl_update` reports as the running session
+
+— need nothing but the working tree, and are precisely the checks that guard **what an
+operator sees about the version they installed**. Excluding the file dropped both from the
+public tree silently, because an absent test reports nothing: the suite went green having
+simply stopped asking.
+
+Split, so the unit of exclusion matches the reason for excluding:
+
+| file | question | public tree |
+|---|---|---|
+| `_stamps_common.py` | how to read a stamp | ships |
+| `test_stamps.py` | do the two literals equal VERSION | **ships** (regained) |
+| `test_stamps_history.py` | is any stamp older than the release that changed it | withheld |
+
+The public suite goes from 110 to **112** test functions.
+
+**And the sanitiser now enforces it, per test rather than per file.** `$PublicMayLack` names
+the one test allowed to be absent; dropping any other fails the build, and a named test that
+*does* ship fails it too, so the ledger cannot rot.
+
+The first version of that check was worthless: it skipped `$Exclude`d files before comparing,
+so a withheld file's tests could never be counted as lost — it could not fire by
+construction. Re-adding `test_stamps.py` to `$Exclude` passed cleanly while dropping two
+tests, which is the exact defect it existed to catch. Both directions are now verified by
+doing it and watching it fail. A guard that has never failed is a guess.
+
+The second version still under-counted, and Copilot caught that too, reviewing this change:
+the scan read only top-level `def` lines in `python/tests` itself, so a test moved into a
+subdirectory or gathered into a class would have gone unseen — and a guard that under-counts
+is the failure this entry is about. Now recursive, and matching indented definitions. Neither
+property is exercised by the suite as it stands (every test today is a top-level `def` in that
+one directory), so it was proven by differential test: a class-based test planted in a
+subdirectory and withheld is **named as lost** by the current scan and **passes cleanly** under
+the previous one.
+
+Two rounds, both findings real, on the change whose entire subject is guards that cannot fire.
+
+### Also accepted
+
+- **The `datalib.ado` comment pointed at a test that was not there.** It says the `RUNNING`
+  literal is "Pinned to VERSION by `test_stamps.py`" — true privately, false in the public
+  tree once that file was withheld. The split repairs it without touching the comment: the
+  file named still ships, and still contains that check.
+- **A section heading contradicted its own paragraph.** "Why no PR ever showed a check" above
+  text explaining that checks ran and failed. Now "a *green* check". Introduced by the
+  correction that was supposed to fix this entry.
+- **`required_status_checks` was described in the present tense** as `NONE` and "worth
+  revisiting", by then already enabled on the public repository. Now past tense, with the
+  current state stated.
+- **"on both repositories" was ambiguous** in a file that ships to one of them. Both are
+  named.
+
+### Accepted with a correction to the finding
+
+Copilot flagged "each ran 7 check runs" as wrong for PR #2. Checked: #2 ran exactly 7. **The
+claim was still wrong** — PR #4 ran 13, because it targeted `main` from `dev` and the workflow
+fires on both `push` and `pull_request`, so the matrix runs twice. Right defect, wrong
+instance; fixed with the specific number and the reason rather than by deleting the count.
+
+### Rejected
+
+- The mismatched `` `*!' `` quoting in a `sync-public.ps1` comment: the comment was rewritten
+  for the rename anyway, and the Stata compound-quote form is house style in this codebase's
+  prose. Now plain `"*!"` inside a PowerShell comment, so the point stands on the rewrite.
+
+No behavioural change to any of the three language legs. `datalib.ado` bumps because its
+stamp and `RUNNING` literal track VERSION exactly.
+
 ## [0.9.31] — 2026-08-01
 
 The public distribution's CI was red, and its PRs had been merging without a green check.
 
-### Why no PR on the public repo ever showed a check
+### Why no PR on the public repo ever showed a *green* check
 
-**All four failed the same test, for the same reason.** Each ran 7 check runs; in every case
-the four Python jobs failed on
+Checks ran. They were red.
+
+**All four failed the same test, for the same reason.** Three ran 7 check runs each and the
+fourth ran 13 — it targeted `main` from `dev`, and the workflow fires on both `push` and
+`pull_request`, so the matrix runs twice. In every case the Python jobs failed on
 `test_stamps.py::test_no_stamp_is_older_than_the_release_that_changed_it`, naming
-`stata/src/d/datalib_resolve.ado: stamps 0.9.3`, while both R jobs passed.
+`stata/src/d/datalib_resolve.ado: stamps 0.9.3`, while every R job passed.
 
-**They merged regardless, because `required_status_checks` is `NONE` on both repositories.**
-Protection blocks direct pushes and enforces admins, but does not gate on CI. That was
-rational while Actions was billing-blocked org-wide — requiring checks that could never pass
-would have hard-locked both repos, since `enforce_admins` is also on — and is worth
-revisiting now that CI runs.
+**They merged regardless, because `required_status_checks` was `NONE`** — on `main` and `dev`
+in the private repository *and* in the public distribution. Protection blocked direct pushes
+and enforced admins, but did not gate on CI. That was rational while Actions was
+billing-blocked org-wide: requiring checks that could never pass would have hard-locked every
+branch, since `enforce_admins` is also on.
+
+Since 0.9.31 shipped, **the public distribution requires all six conformance contexts on
+`main` and `dev`** (`strict=false`, admins still enforced), verified by watching a PR sit at
+`BLOCKED` until the last check reported and flip to `CLEAN`. The private repository is
+unchanged at none.
 
 Not two causes. An earlier draft of this entry claimed #1 and #2 had merged during the
 billing block with zero runs fired. That was a stale fact carried forward from when the block
 was real (v0.9.4 through roughly 2026-07-27) and attached to these PRs without checking the
-check-run history, which shows 7 runs on each. A public repository on standard runners is
+check-run history, which shows checks on all four. A public repository on standard runners is
 never billing-blocked in the first place: Actions is free and unlimited there, so the story
 could not have been true. Recorded because the wrong version was published to five places
-before the arithmetic was questioned.
+before the impossibility was noticed — and it was noticed only because someone asked whether
+GitHub charges for Actions on public repos.
 
 ### Why the stamp test cannot pass in a generated repository
 

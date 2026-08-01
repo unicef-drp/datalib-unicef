@@ -50,7 +50,7 @@ from .explorer import ExplorerNode, datalib_explorer, datalib_index, file_kind
 from .registry import Collection, ModuleSpec, contract_version, get_collection
 from .update import UpdateStatus, datalib_update
 
-__version__ = "0.9.31"
+__version__ = "0.9.32"
 CONTRACT_VERSION = "1"
 
 # ---- canonical cross-language aliases (contract: datalib_<verb>) ----

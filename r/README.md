@@ -14,7 +14,7 @@ supported install path. **Note the `utils::` prefix** — it is not decoration, 
 below:
 
 ```r
-utils::install.packages("Z:/_pkg/datalib/R/datalib_0.9.31.tar.gz",
+utils::install.packages("Z:/_pkg/datalib/R/datalib_0.9.32.tar.gz",
                         repos = NULL, type = "source")
 ```
 
