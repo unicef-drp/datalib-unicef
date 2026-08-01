@@ -3,6 +3,48 @@
 All notable changes to **datalib-unicef**. Versioning follows [SemVer](https://semver.org/);
 commits follow Conventional Commits.
 
+## [0.9.31] — 2026-08-01
+
+The public distribution's CI was red, and its PRs had been merging without a green check.
+Two unrelated causes, found by looking at the closed PRs rather than at the code.
+
+### Why no PR on the public repo ever showed a check
+
+**#1 and #2 merged while Actions was billing-blocked org-wide.** Zero runs fired, so there
+was no status to display — not a failing check, an absent one.
+
+**#3 and #4 ran CI and it failed** on one test, `test_stamps.py`.
+
+**And all four merged regardless, because `required_status_checks` is `NONE` on both
+repositories.** Protection blocks direct pushes and enforces admins, but does not gate on
+CI. That was rational while Actions was dead for months — requiring checks that could never
+pass would have blocked all work — and is worth revisiting now that CI runs.
+
+### Why the stamp test cannot pass in a generated repository
+
+It polices release discipline: a file's `*!` stamp must be at least the `VERSION` in effect
+at the commit that last changed that file. That question is unanswerable in the public tree,
+where **each sync is one commit touching hundreds of files** — so every file appears to have
+changed at that release, and every stamp below it is reported stale.
+
+`datalib_resolve.ado` stamps 0.9.3 and genuinely has not changed since; its only appearance
+in public history is the 0.9.19 sync commit, so the test called it stale.
+
+Not the shallow-clone problem fixed in 0.9.30. The commits it named were real; the *history
+shape* was wrong for the question.
+
+So the test is now **withheld from the public tree**, alongside the sanitiser itself, which
+is excluded for the same reason: it is a `-dev` concern. Withheld rather than made skippable,
+because "is this history synthetic?" has no reliable test, and a guard that cannot answer
+should not ship somewhere it will only ever produce false failures. It stays in force where
+it means something.
+
+This is the **fourth** distinct failure mode in that one guard: it did not exist while
+`datalib.sthlp` drifted five releases; it compared against the wrong commit for uncommitted
+files (0.9.23); it produced false failures under a shallow checkout (0.9.30); and it cannot
+answer at all in a squashed distribution. Each time the fix has been to narrow what it
+claims to know.
+
 ## [0.9.30] — 2026-08-01
 
 **CI ran for the first time since v0.9.4**, the monthly Actions quota having reset, and it
