@@ -1,7 +1,7 @@
 *******************************************************
 ** datalib 
 * Joao Pedro Azevedo and Minh Cong Nguyen
-*! v0.9.29
+*! v0.9.30
 *******************************************************
 
 capture program drop datalib
@@ -16,7 +16,7 @@ program define datalib, rclass
     * install without -discard- the two diverge and every disk-based indicator
     * (-which datalib-, the trk, the stamp) reports the new version about a session
     * still running the old code. Pinned to VERSION by test_stamps.py.
-    local RUNNING "0.9.29"
+    local RUNNING "0.9.30"
 
     *---------------------------------------------------------------------------
     * Subcommand dispatch: -datalib <subcmd> ...- runs -datalib_<subcmd> ...-

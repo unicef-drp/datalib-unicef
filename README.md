@@ -390,7 +390,7 @@ Lineage and related World Bank projects (see also the reference library):
 
 ## Version History
 
-See **[CHANGELOG.md](CHANGELOG.md)** for the full history. Current: **v0.9.29** —
+See **[CHANGELOG.md](CHANGELOG.md)** for the full history. Current: **v0.9.30** —
 the R package passes `R CMD check --as-cran` and the Python package carries full
 PyPI metadata, so both are submittable; the public distribution repository
 ([unicef-drp/datalib-unicef](https://github.com/unicef-drp/datalib-unicef)) is live
@@ -503,7 +503,7 @@ To cite the software directly:
 - Developer info: See [.github/copilot-instructions.md](.github/copilot-instructions.md)
 
 **Last Updated:** 2026-08-01  
-**Current Version:** 0.9.29  
+**Current Version:** 0.9.30  
 **Repository:** https://github.com/unicef-drp/datalib-unicef
 
 ---
