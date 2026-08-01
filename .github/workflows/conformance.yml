@@ -29,6 +29,13 @@ jobs:
         python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # test_stamps.py asks git which release last changed each file. Under the
+          # default fetch-depth: 1 there is only the tip commit, so every file looks
+          # like it changed there -- and every stamp older than the current VERSION
+          # is reported stale. That produced four false failures on the first green
+          # CI run after Actions was unblocked.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -45,6 +52,13 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # test_stamps.py asks git which release last changed each file. Under the
+          # default fetch-depth: 1 there is only the tip commit, so every file looks
+          # like it changed there -- and every stamp older than the current VERSION
+          # is reported stale. That produced four false failures on the first green
+          # CI run after Actions was unblocked.
+          fetch-depth: 0
       - uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true

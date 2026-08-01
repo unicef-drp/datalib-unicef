@@ -185,6 +185,22 @@ def test_no_stamp_is_older_than_the_release_that_changed_it(
     if not git_available:
         pytest.skip("not a git checkout, or git unavailable")
 
+    # A SHALLOW clone cannot answer this question. `git log -1 -- <file>` needs history;
+    # with fetch-depth: 1 there is only the tip commit, so every file appears to have
+    # changed there and every stamp below the current VERSION is reported stale. That is
+    # exactly what happened on the first green CI run after Actions was unblocked: four
+    # jobs failed claiming datalib_resolve.ado (stamped 0.9.3, untouched for months) had
+    # changed in 0.9.29.
+    #
+    # The workflow now sets fetch-depth: 0, but anyone can reduce it again, and a test
+    # that then reports confident nonsense is worse than one that admits it cannot tell.
+    shallow = _git(repo_root, "rev-parse", "--is-shallow-repository")
+    if shallow == "true":
+        pytest.skip(
+            "shallow clone: git history is truncated, so 'the release in effect when "
+            "this file last changed' cannot be resolved. Use fetch-depth: 0."
+        )
+
     version_now = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
     stale: list[str] = []
     unknown: list[str] = []
