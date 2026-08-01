@@ -1,13 +1,22 @@
 *******************************************************
 ** datalib 
 * Joao Pedro Azevedo and Minh Cong Nguyen
-*! v0.9.19
+*! v0.9.29
 *******************************************************
 
 capture program drop datalib
 program define datalib, rclass
 
     version 15
+
+    * The version of THIS file, compiled in. It cannot be read from the `*!' stamp
+    * at runtime: that would mean reading datalib.ado from disk, and the disk copy
+    * is exactly what this literal exists to be compared against. -net install-
+    * replaces the file while Stata keeps the old program in memory, so after an
+    * install without -discard- the two diverge and every disk-based indicator
+    * (-which datalib-, the trk, the stamp) reports the new version about a session
+    * still running the old code. Pinned to VERSION by test_stamps.py.
+    local RUNNING "0.9.29"
 
     *---------------------------------------------------------------------------
     * Subcommand dispatch: -datalib <subcmd> ...- runs -datalib_<subcmd> ...-
@@ -33,6 +42,20 @@ program define datalib, rclass
                 install                  ///
                 force                    ///
                 netsource(string)        ///
+                explorer                 ///
+                NOFILES                  ///
+                files                    ///
+                sizes                    ///
+                MAXitems(integer 400)    ///
+                PERpage(integer 0)       ///
+                PAGE(integer 1)          ///
+                index                    ///
+                dirs                     ///
+                MAXDepth(integer 0)      ///
+                MAXNodes(integer 400)    ///
+                pattern(string)          ///
+                saving(string)           ///
+                replace                  ///
                 subfoldr(string)         ///
                 country(string)          ///
                 year(string)             ///
@@ -69,7 +92,30 @@ program define datalib, rclass
     * Stata-only maintenance affordance, not part of the trilingual contract.
     *---------------------------------------------------------------------------
     if ("`update'"!="") {
-        _dl_update, netsource(`"`netsource'"') `install' `force'
+        _dl_update, netsource(`"`netsource'"') `install' `force' ///
+            running("`RUNNING'")
+        return add
+        exit
+    }
+
+    * Dispatched BEFORE library resolution, deliberately: explorer walks ARBITRARY
+    * trees, and datalib_root would apply _dl_islib -- the very gate this option
+    * exists to bypass. root() falls back to ${datalib} inside datalib_explorer, so
+    * the common case still needs no argument.
+    if ("`explorer'"!="") {
+        datalib_explorer, path(`"`path'"') root(`"`library'"') `files' `nofiles' `sizes' ///
+            maxitems(`maxitems') perpage(`perpage') page(`page')
+        return add
+        exit
+    }
+
+    * Also before library resolution, and for the same reason as explorer: it walks an
+    * ARBITRARY tree, so _dl_islib must not get a vote. Note it REPLACES the data in
+    * memory -- that is why `clear' has to be passed through rather than assumed.
+    if ("`index'"!="") {
+        datalib_index, path(`"`path'"') root(`"`library'"') `dirs' `sizes' `clear' ///
+            maxdepth(`maxdepth') maxnodes(`maxnodes') ///
+            pattern(`"`pattern'"') saving(`"`saving'"')
         return add
         exit
     }

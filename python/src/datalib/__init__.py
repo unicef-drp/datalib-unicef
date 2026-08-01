@@ -46,10 +46,11 @@ from .errors import (
 from .grammar import ParsedName, format_vintage, parse_name, parse_vintage
 from .io import DtaMeta, read_dta
 from .load import load
+from .explorer import ExplorerNode, datalib_explorer, datalib_index, file_kind
 from .registry import Collection, ModuleSpec, contract_version, get_collection
 from .update import UpdateStatus, datalib_update
 
-__version__ = "0.9.19"
+__version__ = "0.9.29"
 CONTRACT_VERSION = "1"
 
 # ---- canonical cross-language aliases (contract: datalib_<verb>) ----
@@ -69,6 +70,10 @@ datalib_map_drive = mapzdrive
 map_drive = mapzdrive
 
 __all__ = [
+    "ExplorerNode",
+    "datalib_explorer",
+    "datalib_index",
+    "file_kind",
     # idiomatic surface
     "load",
     "resolve",

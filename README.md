@@ -390,7 +390,11 @@ Lineage and related World Bank projects (see also the reference library):
 
 ## Version History
 
-See **[CHANGELOG.md](CHANGELOG.md)** for the full history. Current: **v0.9.19** —
+See **[CHANGELOG.md](CHANGELOG.md)** for the full history. Current: **v0.9.29** —
+the R package passes `R CMD check --as-cran` and the Python package carries full
+PyPI metadata, so both are submittable; the public distribution repository
+([unicef-drp/datalib-unicef](https://github.com/unicef-drp/datalib-unicef)) is live
+and the documented web `net install` works. Earlier, v0.9.19 —
 the net site is now `Z:/_pkg/datalib` and is the only supported install path,
 `datalib , update` reports the copy actually on the adopath, and every `*!` stamp
 is pinned to the release that last changed the file. Earlier, v0.9.3 —
@@ -498,8 +502,8 @@ To cite the software directly:
 - Detailed guides: See [Documentation](#documentation) section
 - Developer info: See [.github/copilot-instructions.md](.github/copilot-instructions.md)
 
-**Last Updated:** 2026-07-26  
-**Current Version:** 0.9.19  
+**Last Updated:** 2026-08-01  
+**Current Version:** 0.9.29  
 **Repository:** https://github.com/unicef-drp/datalib-unicef
 
 ---

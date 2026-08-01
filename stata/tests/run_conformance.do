@@ -162,6 +162,9 @@ forvalues i = 1/`N' {
 *------------------------------------------------------------------------------*
 capture program drop datalib
 quietly run "stata/src/d/datalib.ado"
+quietly run "stata/src/_/_dl_fileaction.ado"
+quietly run "stata/src/d/datalib_explorer.ado"
+quietly run "stata/src/d/datalib_index.ado"
 
 * Pin the library so the legacy-surface cases below measure dispatch only, and
 * never read the operator's real config or probe a network share.
@@ -1127,6 +1130,18 @@ if (_rc==198) {
 }
 else di as txt "pass surface[files] (declared options accepted, rc=" _rc ")"
 
+* Part 9 is hand-written per command rather than a loop over surface.yml, so a newly
+* declared command does not get a case for free. Part 11 exercises each of these five
+* options, but never all five at once, which is the combination this Part exists to
+* pin. `ROOT' is a real library and explorer applies no library test, so it opens fine.
+local ++total
+capture quietly datalib_explorer, root("`ROOT'") path(ZWE) files sizes maxitems(50)
+if (_rc==198) {
+    di as err "FAIL surface[explorer]: rc=198 - a declared option was rejected."
+    local ++fails
+}
+else di as txt "pass surface[explorer] (declared options accepted, rc=" _rc ")"
+
 local ++total
 capture quietly datalib_catalog, country(ZWE) root("`ROOT'") clear
 if (_rc==198) {
@@ -1519,6 +1534,58 @@ if (r(shadowed)!=0) {
 }
 else di as txt "pass u15 (no shadow warning when the installed copy is the one on the adopath)"
 
+* u17-u19 - the memory-vs-disk check, which is a different hazard from u15/u16.
+*
+* u15/u16 are about PLACE: the adopath resolving datalib somewhere other than the copy
+* being reported on. This is about TIME: the right file, loaded before -net install-
+* replaced it. Stata compiles an ado into memory on first use and -net install- does not
+* invalidate that, so after an install without -discard- every disk-based indicator --
+* `which datalib', the trk, the `*!' stamp -- reports the new version while the session
+* keeps executing the old code. Demonstrated with a throwaway package: write zzstale.ado
+* at v1, run it, overwrite the file at v2, and -which- says v2 while the program still
+* prints v1.
+*
+* running() is the caller's own compiled-in literal, so a stale front door passes a stale
+* value and the mismatch is what gets detected.
+capture _dl_update, netsource("Z:/_pkg/datalib/stata")
+local u17inst `"`r(installed)'"'
+if (`"`u17inst'"'=="") | (`"`u17inst'"'=="unknown") {
+    di as txt "skip u17-u19 (no installed version to compare against)"
+    local skips = `skips' + 3
+    local total = `total' + 3
+}
+else {
+    * u17 - no false alarm when the session matches disk. A warning that fires every
+    * time is a warning nobody reads, and it would take the true positives with it.
+    local ++total
+    capture _dl_update, netsource("Z:/_pkg/datalib/stata") running(`"`u17inst'"')
+    if (r(stale)!=0) {
+        di as err `"FAIL u17: false stale alarm (running=`r(running)', installed=`r(installed)')."'
+        local ++fails
+    }
+    else di as txt "pass u17 (session matching disk is not reported stale)"
+
+    * u18 - the hazard itself. 0.0.1 can never be what is installed.
+    local ++total
+    capture _dl_update, netsource("Z:/_pkg/datalib/stata") running(0.0.1)
+    if (r(stale)!=1) | (`"`r(running)'"'!="0.0.1") {
+        di as err `"FAIL u18: stale=`r(stale)' running=[`r(running)'] (want 1 and 0.0.1)."'
+        local ++fails
+    }
+    else di as txt "pass u18 (a session behind the disk copy is detected and named)"
+
+    * u19 - an older front door passes no running(), and then there is nothing to
+    * compare. Report nothing rather than guess: claiming a stale session on the
+    * strength of a missing argument would be the false alarm u17 guards against.
+    local ++total
+    capture _dl_update, netsource("Z:/_pkg/datalib/stata")
+    if (r(stale)!=0) | (`"`r(running)'"'!="") {
+        di as err `"FAIL u19: stale=`r(stale)' running=[`r(running)'] with no running() (want 0 and empty)."'
+        local ++fails
+    }
+    else di as txt "pass u19 (no running() -> no claim either way)"
+}
+
 * u16 - THE HAZARD ITSELF: a clone prepended to the adopath shadows the installed
 * package, so every version reported describes files this session will not run.
 * Reproduced the way it actually happens -- -adopath ++- on a directory holding
@@ -1561,6 +1628,562 @@ foreach d in dl_u_none dl_u_new dl_u_v dl_u_old {
     if (_rc==0) erase `"`UB'/`d'/stata.toc"'
     capture rmdir `"`UB'/`d'"'
 }
+
+*------------------------------------------------------------------------------*
+* Part 11 - datalib_explorer (arbitrary-tree navigation).
+*
+* Hermetic by construction: a throwaway tree under c(tmpdir) carrying the two
+* properties that actually caused bugs while this was written -- a folder name with a
+* SPACE in it, and mixed casing that Stata's `: dir' would flatten. Nothing here needs
+* Z: to be mounted; the single case that would is guarded and skips.
+*------------------------------------------------------------------------------*
+di as result _n "Part 11 - datalib_explorer"
+
+local XB = subinstr(`"`c(tmpdir)'"', "\", "/", .)
+if (substr(`"`XB'"', -1, 1)=="/") local XB = substr(`"`XB'"', 1, strlen(`"`XB'"')-1)
+local XR `"`XB'/dl_explore"'
+capture mkdir `"`XR'"'
+foreach d in "Afghanistan" "Zed Land" "SLV" {
+    capture mkdir `"`XR'/`d'"'
+}
+capture mkdir `"`XR'/Afghanistan/2010 SDHS"'
+capture mkdir `"`XR'/Afghanistan/2010 SDHS/Raw Datasets"'
+capture mkdir `"`XR'/SLV/SLV_2014_MICS"'
+* two files at the root, so n_files and exts have something to find
+tempname xf
+foreach f in "notes.txt" "table.DTA" {
+    capture file close `xf'
+    capture file open `xf' using `"`XR'/`f'"', write text replace
+    if (_rc==0) {
+        file write `xf' "x" _n
+        capture file close `xf'
+    }
+}
+
+* x01 - the tree opens, and it opens whether or not it is a library.
+*
+* NOTE the fixture root DOES satisfy _dl_islib, because it contains SLV/SLV_2014_MICS
+* -- the ???/???_* country pair the library test looks for. That branch is needed by
+* x07, so rather than remove it the not-a-library claim is asserted where it is
+* actually true: Afghanistan/ holds "2010 SDHS", which is no country pair at all.
+local ++total
+capture datalib_explorer, root(`"`XR'"')
+local rc1 = _rc
+local nd1 = r(n_dirs)
+local dp1 = r(depth)
+capture _dl_islib `"`XR'/Afghanistan"'
+local notlib = (r(islib)==0)
+capture datalib_explorer, root(`"`XR'/Afghanistan"')
+local rc2 = _rc
+local nd2 = r(n_dirs)
+if (`rc1'!=0) | (`nd1'!=3) | (`dp1'!=0) | (`rc2'!=0) | (!`notlib') | (`nd2'!=1) {
+    di as err "FAIL x01: root rc=`rc1' n_dirs=`nd1' depth=`dp1' ; non-library rc=`rc2' islib0=`notlib' n_dirs=`nd2'"
+    local ++fails
+}
+else di as txt "pass x01 (opens a library root AND a non-library directory)"
+
+* x02 - casing preserved. `: dir' lowercases on Windows; explorer must not. This is
+* the reason it reads the directory through Mata rather than the macro extension.
+local ++total
+local viaMacro : dir `"`XR'"' dirs "*"
+capture datalib_explorer, root(`"`XR'"')
+local viaExp `"`r(dirs)'"'
+local hasUpper 0
+foreach d of local viaExp {
+    if (`"`d'"'=="Afghanistan") local hasUpper 1
+}
+local macroLower 0
+foreach d of local viaMacro {
+    if (`"`d'"'=="afghanistan") local macroLower 1
+}
+if (!`hasUpper') {
+    di as err `"FAIL x02: explorer lost the casing -- got [`viaExp']"'
+    local ++fails
+}
+else di as txt "pass x02 (casing preserved; `: dir' lowercased=`macroLower')"
+
+* x03 - a folder name containing a SPACE round-trips through path()
+local ++total
+capture datalib_explorer, root(`"`XR'"') path("Afghanistan/2010 SDHS")
+if (_rc!=0) | (`"`r(path)'"'!="Afghanistan/2010 SDHS") | (r(n_dirs)!=1) {
+    di as err `"FAIL x03: rc=`=_rc' path=[`r(path)'] n_dirs=`=r(n_dirs)'"'
+    local ++fails
+}
+else di as txt "pass x03 (a space in a folder name survives path())"
+
+* x04 - parent and depth are consistent, so a caller can walk back up
+local ++total
+capture datalib_explorer, root(`"`XR'"') path("Afghanistan/2010 SDHS/Raw Datasets")
+local d3 = r(depth)
+local p3 `"`r(parent)'"'
+capture datalib_explorer, root(`"`XR'"') path("Afghanistan")
+local d1 = r(depth)
+local p1 `"`r(parent)'"'
+if (`d3'!=3) | (`"`p3'"'!="Afghanistan/2010 SDHS") | (`d1'!=1) | (`"`p1'"'!=".") {
+    di as err `"FAIL x04: depth3=`d3' parent3=[`p3'] depth1=`d1' parent1=[`p1']"'
+    local ++fails
+}
+else di as txt "pass x04 (depth and parent let a caller walk back up)"
+
+* x05 - r(bytes) is -1 when sizes was NOT asked for. Zero is a real answer for an
+* empty node, so a caller must be able to tell "no bytes" from "not measured".
+local ++total
+capture datalib_explorer, root(`"`XR'"')
+local b_off = r(bytes)
+capture datalib_explorer, root(`"`XR'"') sizes
+local b_on = r(bytes)
+if (`b_off'!=-1) | (`b_on' < 0) {
+    di as err "FAIL x05: bytes without sizes=`b_off' (want -1), with sizes=`b_on' (want >=0)"
+    local ++fails
+}
+else di as txt "pass x05 (bytes -1 = not measured, `b_on' with sizes)"
+
+* x06 - extensions are lowercased and dot-free, and come free from the name
+local ++total
+capture datalib_explorer, root(`"`XR'"') files
+local ex `"`r(exts)'"'
+local nf = r(n_files)
+local w1 dta
+local w2 txt
+if (`nf'!=2) | (!`:list w1 in ex') | (!`:list w2 in ex') {
+    di as err `"FAIL x06: n_files=`nf' exts=[`ex'] (want dta and txt)"'
+    local ++fails
+}
+else di as txt `"pass x06 (n_files=2, exts=[`ex'] lowercased)"'
+
+* x07 - looks_grammar separates a renamed branch from an untouched one, which is what
+* a migration needs in a mixed tree
+local ++total
+capture datalib_explorer, root(`"`XR'"') path("SLV/SLV_2014_MICS")
+local g1 = r(looks_grammar)
+capture datalib_explorer, root(`"`XR'"') path("Zed Land")
+local g0 = r(looks_grammar)
+if (`g1'!=1) | (`g0'!=0) {
+    di as err "FAIL x07: SLV_2014_MICS=`g1' (want 1), 'Zed Land'=`g0' (want 0)"
+    local ++fails
+}
+else di as txt "pass x07 (grammar detected on one branch, not the other)"
+
+* x08 - maxitems caps the listing and says so
+local ++total
+capture datalib_explorer, root(`"`XR'"') maxitems(1)
+local tr = r(truncated)
+local nd = r(n_dirs)
+if (`tr'!=1) | (`nd'!=3) {
+    di as err "FAIL x08: truncated=`tr' (want 1), n_dirs=`nd' (want the true 3)"
+    local ++fails
+}
+else di as txt "pass x08 (listing capped, n_dirs still reports the true total)"
+
+* x12 - the FILE cap. x08 pinned the directory cap and passed, which is why this went
+* unnoticed: the two lists were capped by different amounts of code. Five files, cap of
+* two -- r(n_files) must stay the true 5, r(files) must hold 2, r(truncated) must fire.
+local ++total
+capture mkdir `"`XR'/manyf"'
+forvalues i = 1/5 {
+    capture file close `xf'
+    capture file open `xf' using `"`XR'/manyf/f`i'.txt"', write text replace
+    if (_rc==0) {
+        file write `xf' "123456789" _n
+        capture file close `xf'
+    }
+}
+capture datalib_explorer, root(`"`XR'"') path(manyf) files maxitems(2)
+local nf12 = r(n_files)
+local tr12 = r(truncated)
+local ct12 : word count `r(files)'
+if (`nf12'!=5) | (`ct12'!=2) | (`tr12'!=1) {
+    di as err "FAIL x12: n_files=`nf12' (want 5) stored=`ct12' (want 2) truncated=`tr12' (want 1)"
+    local ++fails
+}
+else di as txt "pass x12 (file listing capped; n_files still the true total; truncated set)"
+
+* x13 - and r(bytes) must agree with what r(files) HOLDS, not with a silent prefix of a
+* longer list. Before the fix this returned 20 for a 50-byte node with truncated=0, so a
+* caller walking a tree and summing r(bytes) got a quietly short number with nothing to
+* check. 10 bytes per file here ("123456789" plus the line terminator), so two listed
+* files is 20 and all five would be 50 -- the assertion distinguishes the two.
+local ++total
+capture datalib_explorer, root(`"`XR'"') path(manyf) files sizes maxitems(2)
+local b13 = r(bytes)
+local tr13 = r(truncated)
+capture datalib_explorer, root(`"`XR'"') path(manyf) files sizes maxitems(400)
+local bAll = r(bytes)
+local trAll = r(truncated)
+if (`b13'>=`bAll') | (`tr13'!=1) | (`trAll'!=0) | (`bAll'<=0) {
+    di as err "FAIL x13: capped bytes=`b13' truncated=`tr13'; uncapped bytes=`bAll' truncated=`trAll'"
+    di as err "          capped total must be STRICTLY less, and only the capped call truncated."
+    local ++fails
+}
+else di as txt "pass x13 (bytes describes the files listed: `b13' capped vs `bAll' whole)"
+
+* Tear the node down HERE, not with the rest of the fixture: it is a fourth child of the
+* root, and x10 asserts the root holds three. Leaving it alive made x10 fail on n_dirs=4
+* -- a case that had passed for eleven runs, broken by a fixture added below it.
+forvalues i = 1/5 {
+    capture erase `"`XR'/manyf/f`i'.txt"'
+}
+capture rmdir `"`XR'/manyf"'
+
+* x14 - THE SILENT-SWALLOW TRAP. `syntax [, FILES NOFILES ]' -- FILES first -- binds
+* NEITHER local when the caller types `nofiles', and raises NO error: Stata reads it as the
+* negation of FILES, which for a plain flag means "absent". Probed directly before this was
+* believed. So declaration ORDER is load-bearing, and a reordering by someone tidying the
+* syntax line would silently disable the option with every test still green. This case is
+* the tripwire: it asserts `nofiles' actually SUPPRESSES.
+*
+* r(n_files) is the TRUE count either way, so asserting on it proves nothing: the first
+* version of this case checked exactly that and would have passed with the order broken.
+* r(listed) exists so the switch is observable at all.
+local ++total
+capture datalib_explorer, root(`"`XR'"')
+local lst_on  = r(listed)
+local nf_on   = r(n_files)
+capture datalib_explorer, root(`"`XR'"') nofiles
+local lst_off = r(listed)
+local nf_off  = r(n_files)
+if (`lst_on'!=1) | (`lst_off'!=0) | (`nf_on'!=2) | (`nf_off'!=2) {
+    di as err "FAIL x14: listed default=`lst_on' nofiles=`lst_off' (want 1 and 0);" ///
+        " n_files `nf_on'/`nf_off' (want 2 and 2 -- nofiles is display-only)"
+    local ++fails
+}
+else di as txt "pass x14 (nofiles bound: r(listed) 1->0, and r() still returns all `nf_off' names)"
+
+* x15 - a companion, and NOT the order tripwire: with the order broken `nofiles' returns rc
+* 0 (swallowed) and `nofilez' returns 198, so this case would pass either way. x14 via
+* r(listed) is what catches the regression. This one is still worth keeping: it pins that
+* the option is spelled as documented and that a near-miss is refused rather than ignored.
+local ++total
+capture datalib_explorer, root(`"`XR'"') nofiles
+local rc15 = _rc
+capture datalib_explorer, root(`"`XR'"') nofilez
+local rc15b = _rc
+if (`rc15'!=0) | (`rc15b'==0) {
+    di as err "FAIL x15: nofiles rc=`rc15' (want 0); nofilez rc=`rc15b' (want nonzero)"
+    local ++fails
+}
+else di as txt "pass x15 (nofiles accepted, a near-miss spelling rejected)"
+
+* x16 - paging slices the DISPLAY and nothing else. The distinction matters: maxitems()
+* truncates -- the files past it are genuinely absent and r(truncated) says so -- whereas
+* perpage() must leave every count and every returned list describing the whole node. A
+* pager that quietly shrank r(n_files) would be the same silent-partial-answer defect this
+* command shipped with in 0.9.21.
+local ++total
+capture datalib_explorer, root(`"`XR'"') perpage(1)
+local nf16   = r(n_files)
+local np16   = r(n_pages)
+local pg16   = r(page)
+local f16    = r(shown_first)
+local l16    = r(shown_last)
+local cnt16 : word count `r(files)'
+if (`nf16'!=2) | (`np16'!=2) | (`pg16'!=1) | (`f16'!=1) | (`l16'!=1) | (`cnt16'!=2) {
+    di as err "FAIL x16: n_files=`nf16' (want 2) n_pages=`np16' (want 2) page=`pg16'" ///
+        " first=`f16' last=`l16' (want 1 and 1) r(files) count=`cnt16' (want 2)"
+    local ++fails
+}
+else di as txt "pass x16 (perpage slices the display; counts and r(files) stay whole)"
+
+* x17 - a page past the end CLAMPS rather than returning an empty listing. Asking for page
+* 99 of 2 is a typo, and answering it with silence looks identical to an empty folder.
+local ++total
+capture datalib_explorer, root(`"`XR'"') perpage(1) page(99)
+local pg17 = r(page)
+local f17  = r(shown_first)
+capture datalib_explorer, root(`"`XR'"') perpage(1) page(0)
+local rc17 = _rc
+if (`pg17'!=2) | (`f17'!=2) | (`rc17'==0) {
+    di as err "FAIL x17: page(99)->`pg17' first=`f17' (want 2 and 2); page(0) rc=`rc17' (want nonzero)"
+    local ++fails
+}
+else di as txt "pass x17 (page past the end clamps to `pg17'; page(0) refused)"
+
+* x18 - the link dispatch. A hyperlink that does nothing is worse than plain text, so each
+* bucket is pinned: Stata's own format, a text companion, something only the OS can open,
+* and the one case that must NOT be linked at all.
+* Read from the SHARED corpus, not from a list typed out here. R and Python assert the
+* same file, so a bucket that moved in one leg and not the others fails everywhere
+* instead of drifting quietly -- which is how datalib.sthlp came to sit five releases
+* behind the code it documented.
+local ++total
+local bad18 0
+local fkcases "tests/cases_filekind.csv"
+capture confirm file "`fkcases'"
+if (_rc!=0) {
+    di as txt "skip x18 (tests/cases_filekind.csv not found)"
+    local ++skips
+}
+else {
+    preserve
+    quietly import delimited using "`fkcases'", varnames(1) clear stringcols(_all)
+    local nrows = _N
+    if (`nrows' < 10) {
+        di as err "FAIL x18: the corpus has only `nrows' rows -- an empty corpus passes silently"
+        local ++bad18
+    }
+    forvalues i = 1/`nrows' {
+        local e    = ext[`i']
+        local want = kind[`i']
+        local why  = why[`i']
+        local nm = cond("`e'"=="none", "noext", "a.`e'")
+        capture _dl_fileaction `"Z:/x/`nm'"'
+        if (`"`r(kind)'"'!="`want'") {
+            di as err `"FAIL x18: .`e' -> `r(kind)' (want `want'; `why')"'
+            local ++bad18
+        }
+    }
+    restore
+}
+* An ampersand is NOT refused: measured on the real archive it would have cost 406 of
+* tens of thousands of files, and cmd only treats & as syntax OUTSIDE quotes -- verified by echoing it
+* through cmd and reading it back intact. A double quote IS refused, because that is what
+* actually breaks the quoting.
+capture _dl_fileaction `"Z:/x/Health & Nutrition.xlsx"'
+if (`"`r(kind)'"'!="open") {
+    di as err `"FAIL x18: an ampersand must still be linked, got `r(kind)'"'
+    local ++bad18
+}
+local ++total
+if (`bad18' > 0) {
+    local ++fails
+    local ++fails
+}
+else di as txt "pass x18 (link dispatch matches the shared corpus; & still linked)"
+
+* x09 - a missing node is 601, not a silent empty listing
+local ++total
+capture datalib_explorer, root(`"`XR'"') path("no/such/node")
+if (_rc!=601) {
+    di as err "FAIL x09: rc=" _rc " (want 601)"
+    local ++fails
+}
+else di as txt "pass x09 (missing node -> rc 601)"
+
+* x10 - the option form on the legacy surface reaches the same command
+local ++total
+capture datalib, explorer library(`"`XR'"')
+if (_rc!=0) | (r(n_dirs)!=3) {
+    di as err "FAIL x10: datalib , explorer rc=" _rc " n_dirs=" r(n_dirs)
+    local ++fails
+}
+else di as txt "pass x10 (datalib , explorer dispatches to datalib_explorer)"
+
+* x11 - explorer must NOT be a dispatcher subcommand: stata_subcommands is the 13
+* canonical contract commands and the surface guard takes its meaning from that count
+local ++total
+capture datalib explorer
+if (_rc==0) {
+    di as err "FAIL x11: 'datalib explorer' dispatched -- it must stay an option, not a 14th subcommand"
+    local ++fails
+}
+else di as txt "pass x11 (not a dispatcher subcommand; the 13 stay 13)"
+
+capture erase `"`XR'/notes.txt"'
+capture erase `"`XR'/table.DTA"'
+forvalues i = 1/5 {
+    capture erase `"`XR'/manyf/f`i'.txt"'
+}
+capture rmdir `"`XR'/manyf"'
+foreach d in "Afghanistan/2010 SDHS/Raw Datasets" "Afghanistan/2010 SDHS" "SLV/SLV_2014_MICS" "Afghanistan" "Zed Land" "SLV" {
+    capture rmdir `"`XR'/`d'"'
+}
+capture rmdir `"`XR'"'
+
+*------------------------------------------------------------------------------*
+* Part 12 - datalib_index (recursive walk -> dataset).
+*
+* Its own throwaway tree, three levels deep, with a space and mixed casing in the names --
+* the two properties that broke explorer -- plus a file with no extension, because "none"
+* is a value a caller will branch on.
+*
+* NOTE these cases replace the data in memory. They run last for that reason, and the
+* harness's own state is restored by the cleanup block that follows.
+*------------------------------------------------------------------------------*
+di as result _n "Part 12 - datalib_index"
+
+local IB = subinstr(`"`c(tmpdir)'"', "\", "/", .)
+if (substr(`"`IB'"', -1, 1)=="/") local IB = substr(`"`IB'"', 1, strlen(`"`IB'"')-1)
+local IR `"`IB'/dl_index"'
+capture mkdir `"`IR'"'
+capture mkdir `"`IR'/Alpha Land"'
+capture mkdir `"`IR'/Alpha Land/Deep One"'
+capture mkdir `"`IR'/Alpha Land/Deep One/Deeper"'
+capture mkdir `"`IR'/BRA"'
+tempname if1
+foreach f in "top.txt" {
+    capture file close `if1'
+    capture file open `if1' using `"`IR'/`f'"', write text replace
+    if (_rc==0) {
+        file write `if1' "abc" _n
+        capture file close `if1'
+    }
+}
+foreach spec in "Alpha Land/mid.DTA" "Alpha Land/Deep One/Deeper/leaf.txt" "BRA/NOEXT" {
+    capture file close `if1'
+    capture file open `if1' using `"`IR'/`spec'"', write text replace
+    if (_rc==0) {
+        file write `if1' "abc" _n
+        capture file close `if1'
+    }
+}
+
+* i01 - the whole subtree in one call, which is the entire point: 4 files across 4 levels,
+* reached without four separate commands.
+local ++total
+capture datalib_index, root(`"`IR'"') clear
+if (_rc!=0) | (r(n_files)!=4) | (_N!=4) | (r(truncated)!=0) {
+    di as err "FAIL ix01: rc=`=_rc' n_files=`=r(n_files)' rows=`=_N' truncated=`=r(truncated)' (want 0/4/4/0)"
+    local ++fails
+}
+else di as txt "pass ix01 (whole subtree in one call: 4 files, 4 rows)"
+
+* i02 - relpath keeps the separators, the spaces and the casing, so a caller can hand it
+* straight back to explorer or to -use-.
+local ++total
+capture datalib_index, root(`"`IR'"') clear
+quietly count if relpath=="Alpha Land/Deep One/Deeper/leaf.txt"
+local hit1 = r(N)
+quietly count if relpath=="Alpha Land/mid.DTA"
+local hit2 = r(N)
+if (`hit1'!=1) | (`hit2'!=1) {
+    di as err "FAIL ix02: deep path found=`hit1', mixed-case path found=`hit2' (want 1 and 1)"
+    local ++fails
+}
+else di as txt "pass ix02 (relpath keeps spaces, depth and casing)"
+
+* i03 - depth and parent. leaf.txt is 4 levels below the root.
+local ++total
+capture datalib_index, root(`"`IR'"') clear
+quietly count if relpath=="Alpha Land/Deep One/Deeper/leaf.txt" & depth==4 & parent=="Alpha Land/Deep One/Deeper"
+local ok3 = r(N)
+quietly count if relpath=="top.txt" & depth==1 & parent=="."
+local ok3b = r(N)
+if (`ok3'!=1) | (`ok3b'!=1) {
+    di as err "FAIL ix03: deep row ok=`ok3', top-level row ok=`ok3b' (want 1 and 1)"
+    local ++fails
+}
+else di as txt "pass ix03 (depth and parent let a caller rebuild the tree)"
+
+* i04 - a file with no extension is "none", not empty. A caller branching on ext must be
+* able to tell "no extension" from a folder row (which IS empty).
+local ++total
+capture datalib_index, root(`"`IR'"') dirs clear
+quietly count if name=="NOEXT" & ext=="none" & is_dir==0
+local ok4 = r(N)
+quietly count if is_dir==1 & ext!=""
+local bad4 = r(N)
+if (`ok4'!=1) | (`bad4'!=0) {
+    di as err "FAIL ix04: NOEXT->none=`ok4' (want 1); folder rows with an ext=`bad4' (want 0)"
+    local ++fails
+}
+else di as txt "pass ix04 (no extension is 'none'; folders have none at all)"
+
+* i05 - dirs adds folder rows without changing the file count.
+local ++total
+capture datalib_index, root(`"`IR'"') clear
+local f5 = r(n_files)
+local n5 = _N
+capture datalib_index, root(`"`IR'"') dirs clear
+local f5d = r(n_files)
+local n5d = _N
+if (`f5'!=`f5d') | (`n5d' <= `n5') | (`n5d' != `f5' + r(n_dirs)) {
+    di as err "FAIL ix05: files `f5' vs `f5d'; rows `n5' vs `n5d'; n_dirs=`=r(n_dirs)'"
+    local ++fails
+}
+else di as txt "pass ix05 (dirs adds folder rows, file count unchanged)"
+
+* i06 - maxdepth stops the descent, and does NOT pretend to be complete.
+local ++total
+capture datalib_index, root(`"`IR'"') maxdepth(2) clear
+quietly summarize depth, meanonly
+local mx6 = r(max)
+if (`mx6' > 2) {
+    di as err "FAIL ix06: maxdepth(2) produced depth `mx6'"
+    local ++fails
+}
+else di as txt "pass ix06 (maxdepth caps the descent at `mx6')"
+
+* i07 - THE ONE THAT MATTERS. maxnodes must set r(truncated), because a short answer that
+* looks complete is the defect explorer shipped with in 0.9.21 (r(bytes) was a silent
+* partial sum). One node can only see the root's own files.
+local ++total
+capture datalib_index, root(`"`IR'"') maxnodes(1) clear
+local t7 = r(truncated)
+local f7 = r(n_files)
+capture datalib_index, root(`"`IR'"') clear
+local t7b = r(truncated)
+local f7b = r(n_files)
+if (`t7'!=1) | (`t7b'!=0) | (`f7' >= `f7b') {
+    di as err "FAIL ix07: capped truncated=`t7' files=`f7'; full truncated=`t7b' files=`f7b'"
+    di as err "          capped must be flagged AND strictly fewer files."
+    local ++fails
+}
+else di as txt "pass ix07 (node cap flagged: `f7' files capped vs `f7b' whole)"
+
+* i08 - bytes is MISSING without sizes, not zero, and r(bytes) is -1. Zero is a real size.
+local ++total
+capture datalib_index, root(`"`IR'"') clear
+local rb8 = r(bytes)
+quietly count if bytes<.
+local nz8 = r(N)
+capture datalib_index, root(`"`IR'"') sizes clear
+local rb8s = r(bytes)
+quietly count if bytes<.
+local nz8s = r(N)
+if (`rb8'!=-1) | (`nz8'!=0) | (`rb8s'<=0) | (`nz8s'==0) {
+    di as err "FAIL ix08: no-sizes r(bytes)=`rb8' nonmissing=`nz8'; with sizes r(bytes)=`rb8s' nonmissing=`nz8s'"
+    local ++fails
+}
+else di as txt "pass ix08 (bytes missing until measured; r(bytes) -1 vs `rb8s')"
+
+* i09 - pattern filters files only. Folders must still be traversed or the walk could not
+* reach a nested match at all -- which is the trap: filtering the traversal too would
+* silently return nothing for a deep pattern.
+local ++total
+capture datalib_index, root(`"`IR'"') pattern(*.txt) clear
+quietly count if ext=="txt"
+local ok9 = r(N)
+quietly count if ext!="txt"
+local bad9 = r(N)
+quietly count if relpath=="Alpha Land/Deep One/Deeper/leaf.txt"
+local deep9 = r(N)
+if (`ok9'==0) | (`bad9'!=0) | (`deep9'!=1) {
+    di as err "FAIL ix09: txt=`ok9' non-txt=`bad9' deep-match-found=`deep9'"
+    local ++fails
+}
+else di as txt "pass ix09 (pattern filters files, still descends to a deep match)"
+
+* i10 - a missing node is 601, matching explorer rather than inventing a second convention.
+local ++total
+capture datalib_index, root(`"`IR'"') path("no/such/node") clear
+if (_rc!=601) {
+    di as err "FAIL ix10: rc=`=_rc' (want 601)"
+    local ++fails
+}
+else di as txt "pass ix10 (missing node -> rc 601, same as explorer)"
+
+* i11 - reachable from the legacy surface, and NOT as a 14th subcommand.
+local ++total
+capture datalib, index library(`"`IR'"') clear
+local rc11 = _rc
+local f11 = r(n_files)
+capture datalib index
+local rc11b = _rc
+if (`rc11'!=0) | (`f11'!=4) | (`rc11b'==0) {
+    di as err "FAIL ix11: option form rc=`rc11' files=`f11'; bare subcommand rc=`rc11b' (must be nonzero)"
+    local ++fails
+}
+else di as txt "pass ix11 (datalib , index works; 'datalib index' is not a subcommand)"
+
+capture erase `"`IR'/top.txt"'
+capture erase `"`IR'/Alpha Land/mid.DTA"'
+capture erase `"`IR'/Alpha Land/Deep One/Deeper/leaf.txt"'
+capture erase `"`IR'/BRA/NOEXT"'
+foreach d in "Alpha Land/Deep One/Deeper" "Alpha Land/Deep One" "Alpha Land" "BRA" {
+    capture rmdir `"`IR'/`d'"'
+}
+capture rmdir `"`IR'"'
+clear
 
 * --- restore session state and clean up -------------------------------------
 global datalib      `"`dl_saved'"'

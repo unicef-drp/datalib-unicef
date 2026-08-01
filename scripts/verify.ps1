@@ -1,0 +1,328 @@
+<#
+.SYNOPSIS
+    Local CI for datalib. One command, one pasteable verdict.
+
+.DESCRIPTION
+    .github/workflows/conformance.yml covers the R and Python legs on Linux and Windows,
+    but Actions has been billing-blocked org-wide since v0.9.4: every job in that
+    workflow fails after ~2 seconds with zero steps, which is the signature of a job
+    that never started. Until billing is fixed, THIS is the gate -- run it before every
+    release and paste the summary into the PR.
+
+    What it checks, in the order that fails fastest:
+
+      1. version manifests   nine files carry the version and each is pinned by a
+                             different test; they must all agree with VERSION
+      2. Python              pytest over python/tests
+      3. R                   testthat over r/tests/testthat
+      4. R CMD check          --as-cran, only with -Full (it is slow)
+
+    The STATA leg is not run here, and that is stated rather than silently omitted.
+    Stata has no CI licence, and batch-mode Stata on Windows is not trustworthy in a
+    script: the executable can hang after finishing, writes its log to the working
+    directory rather than where asked, and its exit code does not reflect whether the
+    do-file failed. So it stays a manual gate:
+
+        do stata/tests/run_conformance.do        (expect NNN/NNN passed, 0 skipped)
+
+    Exit code is 0 only when every leg that ran passed.
+
+.PARAMETER Full
+    Also run R CMD check --as-cran. Adds a couple of minutes.
+
+.PARAMETER SkipR
+    Skip the R leg (useful when only Python changed).
+
+.PARAMETER SkipPython
+    Skip the Python leg.
+
+.EXAMPLE
+    pwsh scripts/verify.ps1
+    pwsh scripts/verify.ps1 -Full
+#>
+[CmdletBinding()]
+param(
+    [switch]$Full,
+    [switch]$SkipR,
+    [switch]$SkipPython
+)
+
+$ErrorActionPreference = 'Continue'
+$repo = Split-Path -Parent $PSScriptRoot
+Push-Location $repo
+
+$results = [ordered]@{}
+$detail  = [ordered]@{}
+
+function Set-Result([string]$leg, [bool]$ok, [string]$note) {
+    $results[$leg] = $ok
+    $detail[$leg]  = $note
+}
+
+Write-Host ""
+Write-Host "datalib local verification" -ForegroundColor Cyan
+Write-Host ("repo: {0}" -f $repo)
+Write-Host ("=" * 72)
+
+# ---------------------------------------------------------------------------
+# 1. Version manifests
+#
+# Nine files carry the version. Each is pinned by a DIFFERENT test, so a partial bump
+# passes some suites and fails others -- which is exactly how 0.9.21 shipped with
+# pyproject.toml left behind. Checking them here fails in a second instead of a minute.
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "1. version manifests" -ForegroundColor Yellow
+$version = (Get-Content -Raw "$repo\VERSION").Trim()
+Write-Host ("   VERSION = {0}" -f $version)
+
+$checks = @(
+    @{ File = 'r\DESCRIPTION';                    Pattern = "^Version:\s*$([regex]::Escape($version))\s*$" }
+    @{ File = 'python\pyproject.toml';            Pattern = "^version\s*=\s*`"$([regex]::Escape($version))`"" }
+    @{ File = 'python\src\datalib\__init__.py';   Pattern = "^__version__\s*=\s*`"$([regex]::Escape($version))`"" }
+    @{ File = 'stata\datalib.pkg';                Pattern = "^d Version\s+$([regex]::Escape($version))\s*$" }
+    @{ File = 'stata\stata.toc';                  Pattern = "^d Version\s+$([regex]::Escape($version))\s*\|" }
+    # The front door twice: -which datalib- reports the *! stamp, and the RUNNING
+    # literal is what tells an operator whether their SESSION is current.
+    @{ File = 'stata\src\d\datalib.ado';          Pattern = "^\*!\s*v$([regex]::Escape($version))\s*$" }
+    @{ File = 'stata\src\d\datalib.ado';          Pattern = "^\s*local RUNNING `"$([regex]::Escape($version))`"" }
+)
+
+$badVersion = @()
+foreach ($c in $checks) {
+    $path = Join-Path $repo $c.File
+    if (-not (Test-Path $path)) { $badVersion += "$($c.File) missing"; continue }
+    $hit = Select-String -Path $path -Pattern $c.Pattern -List -ErrorAction SilentlyContinue
+    if ($null -eq $hit) { $badVersion += "$($c.File) does not carry $version" }
+}
+if ($badVersion.Count -eq 0) {
+    Write-Host "   all manifests agree" -ForegroundColor Green
+    Set-Result 'versions' $true "all agree on $version"
+} else {
+    foreach ($b in $badVersion) { Write-Host ("   MISMATCH {0}" -f $b) -ForegroundColor Red }
+    Set-Result 'versions' $false ("{0} mismatch(es)" -f $badVersion.Count)
+}
+
+# ---------------------------------------------------------------------------
+# 2. Python
+# ---------------------------------------------------------------------------
+if ($SkipPython) {
+    Write-Host ""
+    Write-Host "2. python  SKIPPED (-SkipPython)" -ForegroundColor DarkGray
+    Set-Result 'python' $true 'skipped'
+} else {
+    Write-Host ""
+    Write-Host "2. python" -ForegroundColor Yellow
+    $pyOut = & python -m pytest python -q 2>&1 | Out-String
+    # Parse the counts rather than trusting the exit code alone: a summary line is
+    # evidence, an exit code is a claim.
+    $m = [regex]::Match($pyOut, '(?m)^(?<passed>\d+) passed(?:, (?<xfail>\d+) xfailed)?(?:, (?<skipped>\d+) skipped)?')
+    $fail = [regex]::Match($pyOut, '(?m)^(?<n>\d+) failed')
+    if ($fail.Success) {
+        Write-Host ("   {0} FAILED" -f $fail.Groups['n'].Value) -ForegroundColor Red
+        $pyOut -split "`n" | Select-String -Pattern '^FAILED' | ForEach-Object { Write-Host ("     {0}" -f $_) }
+        Set-Result 'python' $false ("{0} failed" -f $fail.Groups['n'].Value)
+    } elseif ($m.Success) {
+        $note = "{0} passed" -f $m.Groups['passed'].Value
+        if ($m.Groups['xfail'].Success) { $note += ", $($m.Groups['xfail'].Value) xfailed" }
+        Write-Host ("   {0}" -f $note) -ForegroundColor Green
+        Set-Result 'python' $true $note
+    } else {
+        Write-Host "   could not parse pytest output" -ForegroundColor Red
+        Write-Host ($pyOut -split "`n" | Select-Object -Last 8 | Out-String)
+        Set-Result 'python' $false 'unparseable output'
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 3. R
+# ---------------------------------------------------------------------------
+if ($SkipR) {
+    Write-Host ""
+    Write-Host "3. R  SKIPPED (-SkipR)" -ForegroundColor DarkGray
+    Set-Result 'r' $true 'skipped'
+} else {
+    Write-Host ""
+    Write-Host "3. R" -ForegroundColor Yellow
+    # test_local() from inside r/, so the package root and the repo-root corpus both
+    # resolve the way they do for a developer.
+    # Write the R to a FILE rather than passing it with -e. A multi-line expression
+    # handed to `Rscript -e` through PowerShell loses its newlines and comes back as
+    # "Error: unexpected end of input"; a file has no quoting or line-joining to get
+    # wrong.
+    #
+    # getwd(), not ".": test_local(path = ".") dies inside path.expand() with
+    # "restarting interrupted promise evaluation".
+    # And write it WITHOUT a byte-order mark. Windows PowerShell 5.1's
+    # `Set-Content -Encoding utf8` emits a BOM, which R reports as
+    # `Error: unexpected input in "<U+FEFF>"`. This is the third time the same BOM has
+    # bitten in this repo -- it also corrupted the published VERSION manifest on the
+    # share -- so the encoding is constructed explicitly rather than named.
+    # The package path is EMBEDDED, not inherited from the working directory.
+    # Push-Location changes PowerShell's own location but NOT the process working
+    # directory a child inherits, so Rscript started in the repo root and pkgload
+    # aborted with `pkgload_no_desc` -- no DESCRIPTION there. Passing the path removes
+    # the dependency entirely.
+    $rPkg = ((Join-Path $repo 'r') -replace '\\', '/')
+    $rScript = Join-Path $env:TEMP ("datalib_rtest_" + $PID + ".R")
+    $rCode = @"
+res <- testthat::test_local(path = "$rPkg", reporter = "summary",
+                            stop_on_failure = FALSE)
+df <- as.data.frame(res)
+cat(sprintf("TOTALS pass=%d fail=%d error=%d skip=%d\n",
+            sum(df`$passed), sum(df`$failed), sum(df`$error), sum(df`$skipped)))
+"@
+    [System.IO.File]::WriteAllText($rScript, $rCode,
+                                   (New-Object System.Text.UTF8Encoding $false))
+    $rOut = & Rscript $rScript 2>&1 | Out-String
+    Remove-Item $rScript -ErrorAction SilentlyContinue
+    $t = [regex]::Match($rOut, 'TOTALS pass=(?<p>\d+) fail=(?<f>\d+) error=(?<e>\d+) skip=(?<s>\d+)')
+    if ($t.Success) {
+        $f = [int]$t.Groups['f'].Value; $e = [int]$t.Groups['e'].Value
+        $note = "{0} passed, {1} failed, {2} errors, {3} skipped" -f `
+                $t.Groups['p'].Value, $f, $e, $t.Groups['s'].Value
+        if ($f -eq 0 -and $e -eq 0) {
+            Write-Host ("   {0}" -f $note) -ForegroundColor Green
+            Set-Result 'r' $true $note
+        } else {
+            Write-Host ("   {0}" -f $note) -ForegroundColor Red
+            Set-Result 'r' $false $note
+        }
+    } else {
+        Write-Host "   could not parse testthat output" -ForegroundColor Red
+        Write-Host ($rOut -split "`n" | Select-Object -Last 10 | Out-String)
+        Set-Result 'r' $false 'unparseable output'
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 4. R CMD check --as-cran  (opt-in)
+# ---------------------------------------------------------------------------
+if ($Full -and -not $SkipR) {
+    Write-Host ""
+    Write-Host "4. R CMD check --as-cran" -ForegroundColor Yellow
+    # R.exe, not R. In PowerShell `R` resolves to the built-in ALIAS for
+    # Invoke-History, so `& R CMD build` silently runs the wrong command -- it does not
+    # even error in a way that looks like a missing toolchain. Resolve the real
+    # executable and fail loudly if it is not on PATH.
+    $rExe = (Get-Command 'R.exe' -ErrorAction SilentlyContinue)
+    if ($null -eq $rExe) {
+        Write-Host "   R.exe is not on PATH -- cannot run R CMD check" -ForegroundColor Red
+        Set-Result 'rcheck' $false 'R.exe not on PATH'
+        $rExe = $null
+    }
+    $tmp = Join-Path $env:TEMP ("datalib_check_" + [System.Guid]::NewGuid().ToString('N').Substring(0, 8))
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    $tarball = $null
+    if ($null -ne $rExe) {
+        # R CMD build writes the tarball to its working directory, and getting that
+        # directory set from PowerShell took four attempts, so the reasoning is recorded:
+        #
+        #   Push-Location $tmp                     -> landed in C:\GitHub
+        #   [IO.Directory]::SetCurrentDirectory    -> landed in C:\GitHub
+        #   Start-Process -WorkingDirectory $tmp   -> landed in C:\GitHub
+        #   cmd /c cd /d $tmp && R CMD build       -> lands in $tmp
+        #
+        # R itself is not at fault: launched from bash after `cd`, getwd() reports the
+        # directory correctly. `R CMD build` on Windows re-execs, and the grandchild does
+        # not inherit what PowerShell sets -- so hand the whole thing to cmd, whose
+        # `cd /d` applies to everything after it in the same instance.
+        #
+        # Redirection also goes through cmd rather than PowerShell's `2>&1`: in 5.1 that
+        # wraps every stderr line in an ErrorRecord and reports failure on exit 0, and
+        # R CMD build writes its entire progress log to stderr -- which is how a
+        # SUCCESSFUL build first appeared as a NativeCommandError.
+        $bLog = Join-Path $tmp 'build.log'
+        $cmdLine = 'cd /d "{0}" && "{1}" CMD build "{2}" > "{3}" 2>&1' -f `
+                   $tmp, $rExe.Source, (Join-Path $repo 'r'), $bLog
+        & cmd.exe /c $cmdLine | Out-Null
+        $buildExit = $LASTEXITCODE
+        # Even through cmd it still lands elsewhere on this machine, so after the build
+        # LOOK for it rather than assert where it should be. The first attempt at this
+        # searched $repo and its parent and missed: the tarball appears in the
+        # grandparent (C:\GitHub, two levels above the package), which is the shell's
+        # own working directory. Off by one level.
+        $wanted = "datalib_$version.tar.gz"
+        $hunt = @(
+            $tmp,
+            $repo,
+            (Split-Path -Parent $repo),
+            (Split-Path -Parent (Split-Path -Parent $repo)),
+            (Join-Path $repo 'r'),
+            $HOME
+        ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+        foreach ($d in $hunt) {
+            $hit = Join-Path $d $wanted
+            if (Test-Path $hit) {
+                if ($d -ne $tmp) { Move-Item $hit (Join-Path $tmp $wanted) -Force }
+                break
+            }
+        }
+        $cand = Join-Path $tmp $wanted
+        if (Test-Path $cand) {
+            $tarball = Get-Item $cand
+            Write-Host ("   built {0}" -f $wanted)
+        } else {
+            Write-Host ("   searched: {0}" -f ($hunt -join '; ')) -ForegroundColor DarkGray
+            Write-Host ("   build exit {0}; no {1} in {2}" -f $buildExit, $wanted, $tmp) `
+                       -ForegroundColor Red
+            if (Test-Path $bLog) {
+                Get-Content $bLog | Select-Object -Last 8 |
+                    ForEach-Object { Write-Host ("     {0}" -f $_) }
+            }
+        }
+    }
+    Push-Location $tmp
+    if ($null -eq $rExe) {
+        # already reported
+    } elseif ($null -eq $tarball) {
+        Write-Host "   R CMD build produced no tarball" -ForegroundColor Red
+        Set-Result 'rcheck' $false 'build failed'
+    } else {
+        $chkOut = & $rExe.Source CMD check --as-cran --no-manual $tarball.FullName 2>&1 | Out-String
+        $status = [regex]::Match($chkOut, 'Status:\s*(?<s>.+)')
+        $errs = [regex]::Matches($chkOut, '(?m)^\s*ERROR').Count
+        $warns = [regex]::Matches($chkOut, '(?m)^\s*WARNING').Count
+        $note = if ($status.Success) { $status.Groups['s'].Value.Trim() } else { 'no Status line' }
+        if ($errs -eq 0 -and $warns -eq 0) {
+            Write-Host ("   0 ERRORs, 0 WARNINGs -- {0}" -f $note) -ForegroundColor Green
+            Set-Result 'rcheck' $true $note
+        } else {
+            Write-Host ("   {0} ERROR(s), {1} WARNING(s) -- {2}" -f $errs, $warns, $note) -ForegroundColor Red
+            Set-Result 'rcheck' $false $note
+        }
+    }
+    Pop-Location
+    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+}
+
+# ---------------------------------------------------------------------------
+# Verdict
+# ---------------------------------------------------------------------------
+$allOk = -not ($results.Values -contains $false)
+
+Write-Host ""
+Write-Host ("=" * 72)
+Write-Host "paste this into the PR:" -ForegroundColor Cyan
+Write-Host ""
+Write-Host ("- Local verification (`scripts/verify.ps1`), datalib {0}:" -f $version)
+foreach ($k in $results.Keys) {
+    $mark = if ($results[$k]) { 'x' } else { ' ' }
+    Write-Host ("  - [{0}] {1,-9} {2}" -f $mark, $k, $detail[$k])
+}
+Write-Host "  - [ ] stata     NOT RUN here -- no CI licence, and batch Stata on Windows"
+Write-Host "        is untrustworthy in a script. Manual gate:"
+Write-Host "        do stata/tests/run_conformance.do"
+Write-Host "  - [ ] GitHub Actions is billing-blocked org-wide; every job fails in ~2s"
+Write-Host "        with zero steps, so this local run is the gate."
+Write-Host ""
+
+Pop-Location
+if ($allOk) {
+    Write-Host "VERIFIED" -ForegroundColor Green
+    exit 0
+} else {
+    Write-Host "FAILED" -ForegroundColor Red
+    exit 1
+}

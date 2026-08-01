@@ -1,0 +1,79 @@
+d DATALIB: UNICEF Microdata Library - Data Loading and Processing Utility
+d Version 0.9.29
+d Author: Joao Pedro Azevedo (jpazevedo@unicef.org)
+d Date: 2026-08-01
+d
+d Description:
+d   DATALIB is a comprehensive utility designed to facilitate the loading,
+d   processing, and merging of survey data modules across different countries
+d   and years. It provides a user-friendly interface for navigating the data
+d   repository, selecting specific surveys, and performing data operations.
+d   When certain parameters like country, year, or survey are not specified,
+d   DATALIB launches an interactive navigation mode to help users browse
+d   available options.
+d
+d Features:
+d   - Interactive folder navigation through data repository (_foldernav)
+d   - Data loading and processing utilities (_dlw)
+d   - Directory structure creation and management (_mkdir)
+d   - Country, survey, vintage, and adaptation verification functions
+d   - Contract v1 datalib_* API (resolve, catalog, enumerate, load, create)
+d     shared with the R and Python implementations (see help datalib_api)
+d
+d Organization:
+d   Files are organized alphabetically by initial letter in subdirectories:
+d   src/d/ - the datalib command and the datalib_* contract wrappers
+d   src/g/ - getuserconfig user-config loader
+d   src/m/ - mapzdrive network drive mapper
+d   src/_/ - All utility functions starting with underscore
+d
+d Installation:
+d   From a clone of the (private) repository:
+d   net install datalib, from("<path-to-clone>/stata") replace
+d
+d Keywords: survey, data, microdata, utility, navigation
+d
+f src/d/datalib.ado
+f src/d/datalib_resolve.ado
+f src/d/datalib_config.ado
+f src/d/datalib_root.ado
+f src/d/datalib_browse.ado
+f src/d/datalib_explorer.ado
+f src/d/datalib_explorer.sthlp
+f src/d/datalib_index.ado
+f src/d/datalib_index.sthlp
+f src/d/datalib_map_drive.ado
+f src/d/datalib_catalog.ado
+f src/d/datalib_countries.ado
+f src/d/datalib_surveys.ado
+f src/d/datalib_vintages.ado
+f src/d/datalib_adaptations.ado
+f src/d/datalib_files.ado
+f src/d/datalib_load.ado
+f src/d/datalib_create.ado
+f src/d/datalib_api.sthlp
+f src/d/datalib.sthlp
+f src/_/_dlw.ado
+f src/_/_dlw.sthlp
+f src/_/_foldernav.ado
+f src/_/_foldernav.sthlp
+f src/_/_mkdir.ado
+f src/_/_mkdir.sthlp
+f src/_/_ctrycheck.ado
+f src/_/_ctrycheck.sthlp
+f src/_/_svycheck.ado
+f src/_/_svycheck.sthlp
+f src/_/_vcheck.ado
+f src/_/_vcheck.sthlp
+f src/_/_adaptcheck.ado
+f src/_/_adaptcheck.sthlp
+f src/_/_dl_islib.ado
+f src/_/_dl_update.ado
+f src/_/_dl_fileaction.ado
+f src/_/_dl_islib.sthlp
+f src/_/_uc_init.ado
+f src/_/_uc_init.sthlp
+f src/g/getuserconfig.ado
+f src/g/getuserconfig.sthlp
+f src/m/mapzdrive.ado
+f src/m/mapzdrive.sthlp

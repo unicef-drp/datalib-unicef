@@ -3,6 +3,230 @@
 All notable changes to **datalib-unicef**. Versioning follows [SemVer](https://semver.org/);
 commits follow Conventional Commits.
 
+## [0.9.29] — 2026-08-01
+
+Three findings from the automated review on the public sync PR, and two rejected with
+measurements.
+
+### Accepted
+
+**An unreadable directory vanished silently.** `datalib_index` in Python caught `OSError`
+and `continue`d — directly contradicting the comment immediately above it, which said a
+directory that cannot be read "must not be reported as" empty. It returned a partial index
+with nothing a caller could test. That is the same failure this function was already
+corrected for once, in 0.9.21, when `r(bytes)` was a silent partial sum.
+
+Unreadable directories are now counted, named in a warning, and exposed as
+`df.attrs["unreadable"]`. `truncated` is widened to mean **incomplete for either reason** —
+the node cap, or a directory that could not be read — so a caller has one flag to check
+rather than two, with `unreadable` distinguishing which applied.
+
+Verified the hard way: the new test was run against the old `continue` and confirmed to
+fail, then against the fix and confirmed to pass. A regression test that has never failed
+is a guess.
+
+**`queue.pop(0)` was O(n)**, making a wide tree quadratic in queue length — and a wide tree
+is precisely the documented workload. Now a `collections.deque`. Immaterial beside 0.35 s of
+I/O per folder, but free.
+
+**`config/surface.yml` still called explorer and index "Stata-only"** in the header comment
+of blocks that have declared R and Python implementations since 0.9.27. Only the *clickable
+display* is Stata-only, and the comment now says so.
+
+### Rejected, with the measurement
+
+The review reported `max_depth`/`maxdepth()` as off by one in both R and Stata: that
+`cur_depth + 1 < max_depth` "prevents visiting directories at depth == max_depth", so
+`max_depth(1)` would not return the starting node's children.
+
+Measured against a four-level tree instead of reasoned about:
+
+| `max_depth` | file depths returned | dir depths returned |
+|---|---|---|
+| 0 | 1,2,3,4 | 1,2,3 |
+| 1 | 1 | 1 |
+| 2 | 1,2 | 1,2 |
+| 3 | 1,2,3 | 1,2,3 |
+
+`max_depth = 1` returns exactly the starting node's children, which is what the
+documentation promises. The claim conflates **emitting a row** for a child with
+**descending into** it: the row is emitted while processing the *parent*, and enqueueing
+only controls whether that child's own contents get listed. Refusing to enqueue a depth-1
+directory still yields its row — it just produces no depth-2 rows, which is what "stop
+descending past this depth" means.
+
+No change made, in either leg.
+
+## [0.9.28] — 2026-07-30
+
+R gains a package overview page and a runnable tour. Nothing in any leg's behaviour
+changes: this release is documentation that **ships inside the installed package**, which
+is why it needs a version rather than riding along.
+
+### `?datalib` is now a real overview page
+
+CRAN-shaped, because that is what an R user expects to land on: the grammar in one line
+and one diagram, all sixteen exported functions in five task-grouped tables (*where is
+the library / what is in it / which files and give me the data / trees that ignore the
+grammar / housekeeping*), a how-to in three steps, the install-and-upgrade note, and
+runnable examples.
+
+Two rules are stated there because they are the ones that surprise people:
+
+- **Enumerators return empty; resolvers raise.** Asking a country for a survey it does
+  not have is a legitimate question with the answer "none", so `datalib_surveys()`
+  returns zero rows. Asking `datalib_resolve()` for a vintage that does not exist is a
+  mistake, so it errors. "No results" and "you asked about something that does not exist"
+  must not look the same.
+- **Errors are typed.** Match `datalib_error_not_found`, not an English message.
+
+### A guided tour that proves its own completeness
+
+`system.file("examples", "datalib_demo.R", package = "datalib")` — fifteen sections,
+every exported function exercised.
+
+Three properties worth keeping if it is ever edited:
+
+- **Self-contained.** It builds a small library under `tempdir()` with
+  `haven::write_dta()` rather than pointing at `Z:/datalib`, so it runs on a laptop with
+  no share mounted and prints the same thing every time. The real share is used only in
+  the last section, where an un-curated tree is the whole point, and skipped when absent.
+- **Self-verifying.** Section 14 compares what it called against
+  `getNamespaceExports("datalib")` and names anything missed. A demo claiming to show
+  "all features" while quietly skipping one is worse than a demo that admits its scope,
+  so the claim is checked: **16 exported, 16 exercised**.
+- **Side-effect-safe.** The two functions that can change a machine appear in their
+  harmless mode, called out where they appear: `datalib_create(create = FALSE)` (the
+  default — reports the path, writes nothing) and `datalib_map_drive(dry_run = TRUE)`,
+  which is **not** the default and would really map a drive.
+
+### Two bugs in the demo's own data, both instructive
+
+Neither was a datalib bug; both are now comments in the demo, because the errors were
+better teachers than prose would have been.
+
+- `datalib_resolve("KEN")` failed with *"No master vintage found under KEN_2014_DHS"*.
+  The fixture gave KEN an adaptation and no master. An adaptation derives from a master,
+  so a library holding one without the other is malformed — and datalib says so instead
+  of guessing. The demo library now carries both, for two surveys, which also makes
+  "omit the year and survey" a real demonstration of numeric-latest defaults.
+- `datalib_load(module = c("household", "children"))` refused: *"key variable(s) svy_id,
+  cluster_id, household_id missing"*. The synthetic modules carried invented column
+  names. Merge keys come from the collection registry (`config/collections.yml`), never
+  from guessing, and keys must uniquely identify rows or the merge stops rather than
+  silently multiplying them. The demo data now satisfies the registry — `household` at
+  household level, `hhmembers` reading its line variable from `hh_line_number` — and
+  merging 3 households with 6 children correctly yields 6 rows at person grain.
+
+### Local CI: `scripts/verify.ps1`
+
+Actions has been billing-blocked org-wide since v0.9.4 — every job in
+`conformance.yml` fails in ~2 seconds with **zero steps**, the signature of a job that
+never started. The plan called for *"one `scripts/verify` entry point, results pasted
+into each PR"* and it was never built, so three commands were being run by hand each
+release. That is how `pyproject.toml` came to be left behind in 0.9.21.
+
+One command, four checks, ordered to fail fastest:
+
+| | checks |
+|---|---|
+| version manifests | seven patterns across six files, including `datalib.ado` **twice** — the `*!` stamp and the `RUNNING` literal |
+| python | `pytest python` |
+| R | `testthat::test_local()` |
+| `R CMD check --as-cran` | behind `-Full`, because it is slow |
+
+Two properties that matter more than the checks themselves. It **parses pass/fail
+counts** rather than trusting exit codes — a summary line is evidence, an exit code is a
+claim, and in this toolchain exit codes have lied. And it **states that the Stata leg is
+not run**, printing the manual command, rather than silently omitting a third of the
+contract.
+
+`pwsh scripts/verify.ps1 -Full` ends by printing a markdown block to paste into the PR.
+
+**Six Windows-specific traps had to be fixed to get it working**, each now recorded in
+the script so the next reader does not rediscover them:
+
+1. `R` in PowerShell is an **alias for `Invoke-History`**, so `& R CMD build` never ran R.
+2. `Rscript -e` with a multi-line string loses its newlines → *"unexpected end of input"*.
+3. `Set-Content -Encoding utf8` writes a **BOM** → R: *`unexpected input in "<U+FEFF>"`*.
+   The third time this BOM has bitten in this repo; it also corrupted a published
+   `VERSION` manifest on the share.
+4. `testthat::test_local(path = ".")` dies inside `path.expand()`; an absolute path works.
+5. `Push-Location` does not change what a **child process** inherits, so `pkgload` found
+   no `DESCRIPTION`. The package path is embedded now.
+6. `R CMD build` ignores `Push-Location`, `[IO.Directory]::SetCurrentDirectory` **and**
+   `Start-Process -WorkingDirectory`, dropping its tarball in the shell's own directory
+   two levels above the package. The first attempt to locate it afterwards was off by one
+   level.
+
+### Docs: the R install line now says `utils::install.packages`
+
+Reported from a real session, and worth documenting rather than fixing, because the bug
+is not ours.
+
+Plain `install.packages("Z:/.../datalib_0.9.27.tar.gz", repos = NULL, type = "source")`
+**installs correctly** and then, in **RStudio only**, throws:
+
+```text
+* DONE (datalib)
+Error in file(con, "r") : cannot open the connection
+1: In packageDescription(pkgName, lib.loc = dirname(pkgPath)) :
+     no package 'datalib_0.9.27.tar.gz' was found
+2: cannot open file 'Z:/.../datalib_0.9.27.tar.gz/DESCRIPTION'
+```
+
+RStudio hooks `utils::install.packages` to record where each package came from. In the
+local-file branch (`resources/app/R/Tools.R:2362`) it passes the **tarball path** to
+`.rs.recordPackageSource`, and `recordPackageSourceImpl` (`Tools.R:2078`) assumes that
+path is an *installed package directory*:
+
+```r
+pkgName <- basename(pkgPath)                                     # "datalib_0.9.27.tar.gz"
+pkgDesc <- packageDescription(pkgName, lib.loc = dirname(pkgPath))
+```
+
+`basename()` of a tarball is not a package name and `<tarball>/DESCRIPTION` does not
+exist, so the bookkeeping fails *after* `eval(call)` has already installed the package.
+It fires on any single local-file install, in any package.
+
+`r/README.md` now documents the `utils::` prefix, which calls the real function directly
+and skips the hook — the bypass RStudio itself documents on its neighbouring
+`remove.packages` hook. `R CMD INSTALL` is given as the shell-side equivalent.
+
+**How it was found, and how it should have been found.** Ten probes went into trying to
+reproduce it — none could, because `Rscript` never has RStudio's hooks. Two hypotheses
+were wrong and stated too early: the VS Code R extension's task callbacks (the extension
+contains no such call, and `removeTaskCallback` returned `FALSE` — nothing was
+registered), and a dangling `file/connection` object in the operator's saved workspace
+(`rm()`-ing it changed nothing). A single `traceback()` gave the whole answer:
+
+```text
+5: file(con, "r")
+4: readLines(descPath, warn = FALSE)
+3: .rs.recordPackageSourceImpl(pkgPath, db, local)
+2: .rs.recordPackageSource(pkgs, local = TRUE)
+1: install.packages(...)
+```
+
+Ask for the traceback first.
+
+Two other things in the same README section that were wrong or missing:
+
+- It claimed `datalib_update()` "prints the exact command for whatever version the site
+  currently holds". It does not — it reports `status` and nothing more. The claim is
+  replaced with what the function actually does, plus why it deliberately does not
+  install (`install.packages()` over a loaded namespace is unsafe on Windows, where the
+  running session locks the package's own files).
+- `repos = NULL` resolves no dependencies, unlike Stata's `net install`, which has no
+  dependency concept because everything is in the `.pkg`. The three `Imports` are now
+  listed so a fresh machine does not meet a bare `there is no package called 'fs'`.
+
+No version bump. The README does ship inside the tarball, so the published 0.9.27
+carries the older text — but the install line is read from the repo or a pasted snippet,
+never from `system.file("README.md")` of an already-installed package. Unlike 0.9.22,
+where behaviour differed and a bump was mandatory, this is documentation lag with no
+user-visible consequence.
+
 ## [1.0.0] — planned
 
 **Not released.** This entry exists so the criteria live in the repo rather than
@@ -34,6 +258,623 @@ breaking argument renames), **v0.10.1** the `.datalib` marker rollout, then 1.0.
 when the boxes above are ticked. The renames invert polarity in two places
 (`merge` → `nomerge`, `dry_run` → `create`), and 0.x is the right regime for that:
 after 1.0.0 the same change would require 2.0.0.
+
+## [0.9.27] — 2026-07-29
+
+`explorer` and `index` reach **R and Python**. Both were Stata-only since 0.9.21 and 0.9.24.
+
+### What ported, and the half that cannot
+
+`index` ports whole: all three legs return a table with the same columns and the same
+meanings — `relpath parent name ext depth is_dir bytes looks_grammar` — which is what makes
+one set of cases able to check all three.
+
+`explorer` ports its **data** and not its **display**. Stata's version prints a listing whose
+names are hyperlinks; there is no console hyperlink in R or Python, so that half has no
+equivalent and no shim is offered — printing text that looks clickable and is not would be
+worse than plainly lacking the feature. What ports is what the Stata help always called "as
+much the point as the display": the returned surface. Where a Stata user clicks a folder, an
+R or Python caller passes a longer `path`, which the returned `dirs` supports directly, and
+the file-type dispatch behind the hyperlinks is reported as `open_with` so callers need not
+reimplement it.
+
+```r
+node <- datalib_explorer("Afghanistan", root = "<staging-tree>")
+idx  <- datalib_index("Afghanistan", root = "<staging-tree>")
+table(idx$ext)
+```
+
+```python
+node = datalib_explorer("Afghanistan", root="<staging-tree>")
+idx = datalib_index("Afghanistan", root="<staging-tree>")
+idx["ext"].value_counts()
+```
+
+Every decision the Stata leg had to be corrected for is carried over rather than
+rediscovered: `bytes` is `NA`/`None` until measured because 0 is a real size; `max_items`
+caps the lists while the counts stay whole; `max_nodes` **warns** that the result is a prefix;
+`pattern` filters files but never the traversal, or a deep match could not be reached; a
+missing node raises rather than returning an empty listing.
+
+### One corpus instead of three copies
+
+`tests/cases_filekind.csv` now holds the file-type dispatch — 25 rows of `ext,kind,why` —
+and **all three suites read it**. Stata's case x18 previously carried a hand-typed list; it
+reads the shared file now. A bucket that moves in one leg and not the others fails everywhere
+instead of drifting quietly, which is how `datalib.sthlp` once came to sit five releases
+behind the code it documented.
+
+Writing it exposed a trap worth noting: the first version had commas inside the unquoted
+`why` column, so R's `read.csv` shifted `kind` to prose and the test failed with a diff full
+of explanations. For a corpus three languages must parse, the commas are simply gone.
+
+### Declared, not bolted on
+
+Neither function goes into `surface.yml`'s `commands:` block. That block is asserted to be
+exactly the 13 canonical contract commands, and both
+`test_subcommands_are_exactly_the_canonical_commands` and the R export test take their
+meaning from its membership — two entries there would push the canonical count to 15 and
+quietly destroy both guards. They are declared alongside `maintenance`, and both surface
+tests now accept any such block **generically**: a test that must be edited to accept
+correct code is one people learn to edit rather than to trust.
+
+### A packaging defect the CRAN gate caught
+
+`R CMD check --as-cran` reported 7 `.pytest_cache` entries inside the built R tarball. The
+repo `.gitignore` does not catch them either — it is an allowlist whose `!*/` rule re-includes
+every directory, so the cache was untracked but not ignored. There was no `r/.Rbuildignore`
+at all; there is now, and the tarball is clean. Status: **0 ERRORs, 0 WARNINGs**, and the
+remaining NOTEs are environmental (new submission, no pandoc, unverifiable clock).
+
+### Tests
+
+Stata **156/156, 0 skipped**; R gains 37 assertions in `test-explorer.R`; Python gains 17 in
+`test_explorer.py`. The R and Python fixtures carry the same properties that broke the Stata
+implementation — a folder name with a space, mixed casing, a file with no extension — and the
+Python suite adds a cross-check that `explorer`'s counts equal what `index` finds at depth 1,
+since the two read the same directories and must agree.
+
+## [0.9.26] — 2026-07-29
+
+File names in `explorer` are now working hyperlinks, and long listings can be read a page at
+a time.
+
+### Clickable file names, with an action chosen from what Stata can actually do
+
+A hyperlink that merely looks like one is worse than plain text: it invites a click and does
+nothing. So the action dispatches on type, and the buckets come from the archive rather than
+from taste — across the tens of thousands of files in the inventory:
+
+| | share | click runs |
+|---|---|---|
+| `.dta` | 31.5% | `describe using` |
+| text companions (`.dct` `.frq` `.frw` `.map` `.as` `.var` `.ivd` `.sps` `.csv` `.do` `.txt` `.dat`) | ~22% | `view` |
+| everything Stata cannot read (`.sav` `.zip` `.doc` `.xls` `.pdf` `.sas7bdat` `.xlsx` `.docx`) | ~36% | handed to the OS |
+
+`describe using` rather than `use`, deliberately: clicking a name in a file browser should
+not silently replace the data in memory. It answers *what is in this?*, which is the question
+someone exploring an archive is asking, and loading it is then one command away and theirs to
+type.
+
+Being able to open a `.dct` or `.frq` beside the `.dta` it describes is most of the point —
+those DHS and SPSS companions are a fifth of the archive and were previously dead text.
+
+New internal `_dl_fileaction.ado`, as its own packaged file rather than a subroutine, because
+the dependency guard added in 0.9.23 now forbids the latter: a program defined inside another
+file cannot be autoloaded and raises `r(199)` on a clean install, exactly as `_uc_dirs` did.
+
+### A guard that measurement shrank
+
+The first draft refused to link any name containing a quote, ampersand, pipe, angle bracket,
+caret, percent or backtick, on the theory that a `shell` command built around a filesystem
+name could be hijacked. Measured against the real archive that cost **a small fraction of the archive**
+(0.73%, almost all ampersands) — so the fear was worth testing. It was wrong: the shell
+treats those characters as syntax only *outside* quotes, and the path is quoted. Verified by
+echoing each through `cmd` and reading it back:
+
+```
+Health & Nutrition.xlsx   -> intact
+50%25 sample.dta          -> intact
+a^b.pdf                   -> intact
+```
+
+So only a double quote is refused — the one character that would actually break the quoting,
+and one Windows forbids in filenames anyway. Residual: a name with a *pair* of percent signs
+around a real environment variable would be expanded, which makes a click fail rather than do
+something wrong, so it is left alone rather than paid for with a guard that also rejects
+`50% / 75% sample`.
+
+### A no-extension case that was right by accident
+
+Extensionless files reached the viewer through a Stata quirk — `:list "" in x` is TRUE for
+any `x` — so the behaviour was correct but would have changed silently the day someone
+reordered the conditions. It is now an explicit first branch. In this archive the 17
+extensionless files are text data (Spain's `NACIA75` is a 34 MB fixed-width extract), so the
+viewer is the right guess.
+
+### Paging, which is not `maxitems()`
+
+`perpage(20)` shows the files a fixed number at a time with clickable **next**/**prev** and a
+`files 1-4 of 9   page 1 of 3` line.
+
+The distinction from `maxitems()` is load-bearing. `maxitems()` **truncates**: the files past
+it are genuinely absent from `r(files)` and `r(truncated)` is 1 to say the answer is a prefix.
+`perpage()` slices only the *display* — `r(n_files)`, `r(files)` and the extension summary all
+continue to describe the whole node. A pager that quietly shrank the counts would be the same
+silent-partial-answer defect this command shipped with in 0.9.21, and case x16 pins that it
+does not.
+
+`perpage()` travels with you as you navigate, because it is a preference. `page()` does not:
+descending into a folder starts at that folder's beginning, not at page 7 of an unrelated
+listing. A `page()` past the end **clamps** rather than showing nothing, because an empty
+listing and a mistyped page number look identical on screen. `page(0)` is refused.
+
+A node with more than 30 files offers a clickable **show 20 at a time**, so the option does
+not have to be remembered — the lesson from the `files` hint that could not be clicked.
+
+New: `r(page)`, `r(n_pages)`, `r(perpage)`, `r(shown_first)`, `r(shown_last)`.
+
+### Tests
+
+`run_conformance.do` x16–x18: paging slices the display while counts stay whole, a page past
+the end clamps and `page(0)` is refused, and the link dispatch is pinned bucket by bucket —
+including that an ampersand *is* still linked.
+
+## [0.9.25] — 2026-07-29
+
+`explorer` lists files **by default** now, and the hint that could not be clicked is gone.
+
+### The report
+
+Eight nodes navigated in one session, every one ending in
+`9 file(s) here -- add files to list them`, and no files ever seen. Two things were wrong,
+and the second is the embarrassing one.
+
+**The hint was a dead end.** The links `explorer` emits carry the *current* call's options,
+so a session begun without `files` propagates `files`-less links forever. "Add `files`" was
+correct advice that could not be reached by clicking — the same defect class as `update`
+telling an operator to install from a source it could not name.
+
+**Hiding files bought nothing.** `dir(..., "files", ...)` runs unconditionally on every
+node, because `r(n_files)` needs it. The names were already in memory; `files` only decided
+whether to *print* strings already fetched. Making the caller pay a round trip to see data
+already in hand is not a trade-off, it is an oversight.
+
+So files are listed by default. `nofiles` suppresses them. `files` is still accepted and now
+does nothing — it is in `surface.yml`, two help pages and case x06, and breaking it to save
+one line of parsing would be gratuitous.
+
+`sizes` stays opt-in, because unlike listing it is genuinely expensive (~1.4 s per file over
+SMB) — but its hint is now a **link**, and a sticky one: click it once and the propagated
+links carry `sizes` as you descend. It also states the cost up front
+(`measure these 9 file(s) (about 13 s over SMB)`).
+
+### A Stata trap worth recording
+
+`syntax [, FILES NOFILES ]` — with `FILES` declared **first** — binds *neither* local when
+the caller types `nofiles`, and raises **no error**. Stata reads `nofiles` as the negation
+of `FILES`, which for a plain flag means "absent". Declaring `NOFILES` first binds it
+correctly.
+
+Found by probing rather than reading, after `nofiles` silently did nothing. So declaration
+**order** is load-bearing here, and someone tidying the syntax line into alphabetical order
+would disable the option with every test still green. Cases x14 and x15 are the tripwire:
+x14 pins that `nofiles` is a display switch which still returns every name in `r()`, and x15
+pins that a near-miss spelling is *rejected* — proving `syntax` is binding a real option
+rather than discarding an unknown one.
+
+## [0.9.24] — 2026-07-29
+
+Adds `datalib_index` / `datalib , index`: walk a subtree recursively and get it back as a
+**dataset**.
+
+### Why a second command rather than an option on `explorer`
+
+`explorer` answers "what is in *this* folder" and returns `r()`. Reaching one file in
+`Spain/1975 Vital Statistics/Working Datasets/Unzipped/datos partos75` therefore takes five
+round trips, and what you have at the end is a display, not something you can `tabulate`,
+`merge` or `export`. `r()` could not hold the answer anyway — a macro cannot carry 2,548
+rows. So the two commands differ in their *product*, not their options.
+
+One row per file; `dirs` adds a row per folder. Columns: `relpath parent name ext depth
+is_dir bytes looks_grammar`.
+
+**Deliberately no country/survey columns.** The reason `explorer` and `index` exist is that
+these trees do *not* follow the naming grammar, so a built-in "component 1 is a country"
+would smuggle back exactly the assumption they were written to avoid. `split relpath,
+parse("/")` is one line and is the caller's to name.
+
+### The cost is measured, and it decided every default
+
+On `<staging-tree>` the walk costs **0.35 s per folder**, near-constant across
+subtrees of very different size:
+
+| subtree | folders | files | seconds |
+|---|---|---|---|
+| Spain | 1,511 | 2,548 | 530 |
+| Brazil | 258 | 380 | 90 |
+| Afghanistan | 119 | 300 | 42 |
+
+That is SMB round-trip latency per directory open, not overhead in this command — and a
+single bulk enumeration is **no faster**: PowerShell's `Get-ChildItem -Recurse`, which walks
+the whole subtree in one process, took **538 s** on the same branch and found the same folders
+and thousands of files. There is no fast path from one thread.
+
+Consequences, all of them load-bearing:
+
+- The whole 193-country tree is a **6-to-8 hour** walk, so `maxnodes()` defaults to 400
+  (about two and a half minutes) rather than infinity.
+- Hitting the cap is **announced**, sets `r(truncated)`, and the message is explicit that
+  the dataset is a *prefix*. Whole-archive work belongs in the scheduled `<catalogue>`
+  catalogue, which pays the same per-folder cost in parallel and off-hours and stores the
+  checksums this command deliberately does not compute.
+- `sizes` stays opt-in and is now a larger share of the cost: ~1.4 s per file over SMB, so
+  Spain with `sizes` is roughly an hour beyond the walk.
+- Progress prints every 25 folders and `Break` stops the walk, because 8.8 minutes of
+  silence is not acceptable feedback.
+
+### The queue is in Mata, not a macro
+
+A worklist rather than recursion, and the queue lives in a Mata vector. At 400 nodes a macro
+queue is comfortable; a user raising `maxnodes()` to 20,000 with long paths would silently
+exceed `c(macrolen)` and get a short answer with no error — the silent-wrong-result class
+this package keeps having to fix.
+
+### Three defects found in review, before shipping
+
+- **The truncation message said "maxitems"** — copy-paste from `explorer`; the option is
+  `maxnodes`.
+- **It reported the queue length as the remainder.** The walk is breadth-first, so the queue
+  holds only the discovered frontier: with an 8-folder subtree and a cap of 3 it said "2
+  folders not indexed" when 5 were missed. It now says "at least N", and states that the
+  true remainder is unknowable until the walk finishes.
+- **"expect about 0 minutes"** for small caps. Now switches to seconds.
+
+### Tests
+
+`run_conformance.do` Part 12, `ix01`–`ix11`: **150/150 passed, 0 skipped**. The cases that
+matter are the ones that could let a caller trust a partial answer — the node cap, the depth
+cap, and bytes-missing-vs-zero. Case labels are `ix` rather than `i` because the `_uc_init`
+suite already uses `i01`–`i11`, and two sets under one prefix means a failure line cannot
+say which suite it came from.
+
+## [0.9.23] — 2026-07-29
+
+Two small corrections on top of 0.9.22, and one process note.
+
+### The `running` line could render half-way
+
+`quietly` suppresses as-txt and as-res output but lets **as-err** through. The stale-session
+warning mixed the two, so under `quietly datalib, update` it rendered as
+
+```
+  running        :    (in memory - NOT what is on disk)
+```
+
+— label and warning intact, version silently dropped. A half-rendered warning is worse
+than none: it names a problem and withholds the number the reader needs. The line is now a
+single display class, so it appears whole or not at all.
+
+Worth being precise about what was *not* wrong here, because the first reading was that
+`r(stale)` had a logic hole. It does not: `running(0.9.21)` gives `r(stale)=1` and
+`r(running)=0.9.21`, `running()` gives `r(stale)=0`, and case u19 pins that. The empty
+value came from the probe's own `quietly`.
+
+### Why 0.9.23 and not a re-cut of 0.9.22
+
+0.9.22 was published to `Z:/_pkg/datalib` to unblock a user, and the display fix landed
+minutes afterwards — so the share's 0.9.22 no longer matched its own source. That is
+exactly the v0.9.19 failure this CHANGELOG already records, and the rule is absolute:
+never overwrite a published version in place. The real error was publishing before the
+work was finished; 0.9.22 remains on the share, functional and superseded.
+
+## [0.9.22] — 2026-07-29
+
+Fixes a defect in 0.9.21 that made `datalib , explorer` fail on **every clean install**.
+0.9.21 stays on the share untouched, per the standing rule against overwriting a
+published version in place.
+
+### The bug
+
+```
+. datalib, library(<staging-tree>) explorer
+command _uc_dirs is unrecognized
+r(199);
+```
+
+`datalib_explorer` called `_uc_dirs`, which is defined **inside `_uc_init.ado`** (line 345)
+rather than as `_uc_dirs.ado`. Stata resolves a command name to a **file** of that name on
+the adopath, so a secondary program in someone else's file is only callable once that file
+has been loaded for its own reasons. Called cold, it does not exist.
+
+### Why every test passed
+
+`run_conformance.do:45` does `run "stata/src/_/_uc_init.ado"`, which loads the whole file
+and with it `_uc_dirs`. The harness *manufactures* the loaded state whose absence is the
+bug — it structurally cannot catch a missing dependency, because it loads every source
+file up front, which is the one condition a real user does not have. The live probes
+passed for the same reason: the same session-contamination trap that had already produced
+a bogus `u15` failure earlier the same day.
+
+### The fix
+
+The directory listing now goes through Mata's `dir()` directly, exactly as the *file*
+listing in the same command already did. The dependency bought nothing — `_uc_dirs` is a
+thin wrapper over `dir()` — and verified on the live tree, `dir(p,"dirs","*")` returns 193
+**bare** names with casing intact (`Afghanistan`, not `afghanistan`). Both halves of the
+listing are now read the same way and the command depends on nothing outside itself.
+
+Two alternatives were rejected: calling `_uc_init` first to force the load (it is a config
+**writer**, so listing a folder would write files as a side effect), and extracting
+`_uc_dirs` into its own packaged `.ado` (either two definitions free to drift, or surgery
+on the config writer — a far larger blast radius than this bug warrants).
+
+`capture` is also gone from both reads. It was hiding failure as an empty listing: a
+directory that exists but cannot be read would have reported "0 folders, 0 files" instead
+of erroring.
+
+### The guard
+
+New `python/tests/test_ado_dependencies.py`. For every `_`-prefixed program the package
+defines, each call site must be either in the file that defines it (a private subroutine)
+or a name with its own packaged `.ado` (autoloadable). Only names the package itself
+defines are examined, which is what keeps it free of false positives — `_rc`, `_n`, `_N`
+are never in the defined set.
+
+It is in Python, not the Stata harness, for the reason above: the check is static (does a
+name resolve to a file?) and a dynamic test would be fighting the harness it lives in.
+Proven against the real regression, not just a synthetic one — reintroducing the call
+produces:
+
+```
+datalib_explorer.ado:146 calls _uc_dirs, which is defined only inside _uc_init.ado
+and has no _uc_dirs.ado of its own -- Stata cannot autoload it, so this raises
+r(199) on a clean install
+```
+
+### Verified cold
+
+`which _uc_dirs` → rc 111 (provably absent), `_uc_dirs` and `_uc_init` dropped from
+memory, only `datalib_explorer.ado` loaded: the top-level folders, 9 files, rc 0.
+
+## [0.9.21] — 2026-07-29
+
+Stata gains `datalib , explorer` — navigation for trees that do **not** follow the
+naming grammar. R and Python are unchanged; only their version manifests moved, since
+`test-version.R` and `test_version.py` pin each declared version to `VERSION`.
+
+### The problem
+
+Every existing navigation path in this package reconstructs a folder's ancestry from its
+own **name**: `_foldernav` counts underscores to rebuild
+`CCC/CCC_YYYY_SURVEY/`, and `datalib_browse` does the same after uppercasing the path.
+That is correct inside the grammar, where a name encodes its parents. It is useless
+outside it — a folder called `raw datasets` says nothing about which survey it belongs
+to — and `_dl_islib` refuses to start at all, which is how a real staging tree with 193
+top-level folders came to be unreachable from the package that exists to read it.
+
+Two rejected alternatives, recorded because both look cheaper than they are:
+
+- **Drop a `.datalib` marker into the tree.** It would satisfy `_dl_islib` and let the
+  ordinary navigation start — which would then compute wrong parent paths and follow
+  them silently. Refusing to start beats navigating to the wrong place.
+- **Relax `datalib_browse`.** Its whole method is name-parsing. Making it tolerant of
+  non-grammar names does not give it a way to know where it is.
+
+So `datalib_explorer` is a separate command with three different rules: every link
+carries the **full** relative path rather than reconstructing it, casing is preserved,
+and the only precondition is that the directory exists.
+
+### `r()` is as much the point as the display
+
+Seventeen returned values, enough to walk a tree programmatically rather than by
+clicking: `root path fullpath parent depth`, `n_dirs dirs n_files files`,
+`bytes n_exts exts largest largest_bytes`, `is_empty truncated looks_grammar`.
+
+`r(looks_grammar)` is the useful one for a migration: in a tree where some branches
+have been renamed to the convention and others have not, it separates them in one pass.
+
+Two deliberate choices in that surface:
+
+- **`r(bytes)` is `-1`, not `0`, when `sizes` was not given.** Zero is a real answer for
+  a node with no files, so a caller must be able to tell *no bytes* from *not measured*.
+- **`r(dirs)` and `r(files)` are quoted element by element.** a fifth of the top-level
+  folders in the staging tree contain a space; an unquoted space-delimited macro would
+  split them into garbage.
+
+`sizes` is opt-in because **no Mata function reads a file size** — it takes
+`file open` + `file seek eof` + `file seek query`, and an open over an SMB share costs
+about 1.4 s regardless of the file's size. A node with 200 files would take five
+minutes.
+
+### Three bugs the tests caught, and one they caught in the tests
+
+- **Stata's `while` has no single-line form**, unlike `if`. The leading-separator
+  stripper was written without braces and raised `{ required` at *run* time, not load
+  time — so the file installed clean and failed on first use.
+- **`depth` counted words, not separators.** `wordcount()` splits on spaces, so
+  `Afghanistan/2010 SDHS/Raw Datasets` reported depth 5 instead of 3. The conformance
+  fixture carries a space in a folder name precisely to catch this class.
+- **`_stata_filesize` does not exist.** It was written as though it did.
+- **Conformance case x01 asserted the fixture root was not a library, and it is.** The
+  fixture contains `SLV/SLV_2014_MICS` — exactly the `???/???_*` country pair
+  `_dl_islib` looks for — because x07 needs a grammar-shaped branch. The command was
+  right; the assertion was wrong, and now it is made against `Afghanistan/`, where it
+  actually holds.
+
+### `update` now reports what the session is *running*, not only what is on disk
+
+Found by reading a working session, not a failing one. After a clean
+`datalib , update install`, `which datalib` reported `0.9.20`, `update` reported
+`installed : 0.9.20`, and `Up to date` -- all three correct, and all three about **disk**.
+The session was still executing the previous `datalib.ado` from memory, because Stata
+compiles an ado on first use and `net install` does not invalidate that.
+
+Demonstrated with a throwaway package rather than argued: write `zzstale.ado` at
+`*! v1.0.0`, run it, overwrite the file at `v2.0.0`, and `which` reports `v2.0.0` while
+the program still prints `I am v1.0.0` until `discard`. So nothing in a session reported
+what it was actually running.
+
+On 0.9.20 that was harmless -- the Stata leg was byte-identical to 0.9.19 apart from the
+stamp. On **this** release it would not be: install 0.9.21, skip `discard`, and
+`datalib , explorer` fails with rc 198 (the stale front door's `syntax` has no such
+option) while `update` cheerfully reports `installed : 0.9.21`. That is the same defect
+class this command was written to remove -- correct advice the operator cannot act on.
+
+So `datalib.ado` now carries its version a second time as a compiled-in literal and
+passes it to `_dl_update`:
+
+```
+  installed      : 0.9.20   (in <PLUS>)
+  running        : 0.9.19   (in memory - NOT what is on disk)
+                   Stata compiled datalib into memory before the files
+                   were replaced, and keeps using that copy. Run discard.
+  ...
+  Up to date - installed and net site are both 0.9.20.
+  On disk, that is. This session is still running 0.9.19 - run discard.
+```
+
+Three design points:
+
+- **The literal cannot be derived from the `*!` stamp.** Reading the stamp at run time
+  means reading `datalib.ado` from disk, which is the very thing being compared against.
+  So it is a genuine second copy of the version, and
+  `test_the_running_literal_tracks_the_package_version` pins it -- a duplicate with no
+  enforcer is how `datalib.sthlp` drifted five releases.
+- **Comparing the in-memory pair against disk is self-consistent.** After an install
+  without `discard`, *both* `datalib.ado` and `_dl_update.ado` in memory are from the
+  previous release: they agree with each other and both differ from the disk record, so
+  the stale front door passes its own old literal and the stale reporter detects the
+  mismatch.
+- **An empty `running()` makes no claim.** An older front door, or a direct call, passes
+  nothing; reporting a stale session on the strength of a missing argument would be the
+  false alarm that gets warnings ignored.
+
+This is a different hazard from the existing `r(shadowed)` check, and the help file now
+says so: that one is about **place** (the adopath resolving `datalib` somewhere other
+than the copy being reported on), this one about **time** (the right file, loaded before
+it was replaced).
+
+New: `r(running)`, `r(stale)`. Cases u17-u19 cover no-false-alarm, detection, and the
+no-claim path.
+
+### Not a fourteenth subcommand
+
+`explorer` reaches the legacy surface as an **option**, exactly as `update` does, and is
+absent from the dispatcher's `subcmds` list. `stata_subcommands` is the 13 canonical
+contract commands and `test_subcommands_are_exactly_the_canonical_commands` takes its
+meaning from that count, so a fourteenth entry there would quietly destroy the guard.
+Case x11 pins the distinction: `datalib explorer` must fail, `datalib , explorer` must
+work.
+
+It dispatches **before** library resolution, for the same reason `update` does:
+`datalib_root` would apply `_dl_islib`, which is the gate the option exists to bypass.
+
+### Tests
+
+`run_conformance.do` Part 11, cases x01–x11: **133/133 passed, 0 skipped**. The fixture
+is hermetic — built under `c(tmpdir)` with a space in one folder name and mixed casing
+in another, the two properties that actually broke things — so it does not need `Z:` to
+be mounted.
+
+## [0.9.20] — 2026-07-27
+
+A version bump rather than an overwrite, and the reason is the point.
+
+### Why 0.9.20 exists
+
+v0.9.19 was tagged, released, and published to `Z:/_pkg/datalib`. Work then landed on
+`dev` that changed the R and Python packages -- the CRAN fix, the PyPI metadata -- so
+the **published 0.9.19 artefacts no longer matched their own source**. Verified rather
+than assumed: the released R tarball still contained the `Data/{Original,Stata,R}/`
+brace text that `dev` had already fixed.
+
+The tempting move was to rebuild and re-upload under the same version. This
+CHANGELOG already forbids it: *"Never overwrite a published version in place with
+different contents -- bump instead. A stale in-place overwrite on this exact share once
+downgraded a working install."* So: a bump. Nothing about 0.9.19 changes, and anyone
+holding it can see exactly what they have.
+
+**The Stata leg is byte-identical to 0.9.19.** No stamped `.ado` or `.sthlp` changed;
+only the six version manifests, `datalib.ado`'s front-door stamp, and the help page's
+stated version moved. The other stamped files deliberately stay at 0.9.19, which
+`test_stamps.py` permits -- it forbids a stamp *older* than the release that last
+touched the file, not one that lags an untouched file.
+
+### R: `R CMD check --as-cran` now passes
+
+It had never been run. It failed with **1 ERROR**, and the ERROR was that the entire
+suite died before a single test executed: `helper-datalib.R` walked up for
+`DESCRIPTION` and hard-stopped when absent, which is exactly the situation under
+`R CMD check`.
+
+The underlying tension is legitimate. **9 of 13 test files need the shared conformance
+corpus** (`tests/cases_*.csv`, the fixture library), which lives at the repo root and
+is deliberately not in the package -- it is one set of cases Stata, R and Python must
+all pass, and a copy in `inst/` would be a second copy free to drift. On a CRAN machine
+the repo does not exist, so those tests must **skip**, not fail.
+
+Locating now fails soft and the accessors skip, at one choke point rather than a guard
+in nine callers. That choice proved itself: fixing only the *corpus* accessor left 7
+tests failing with `invalid 'description' argument` from `file()` -- NULL reaching
+`file.path()` and yielding `character(0)`. Those tests want the *source tree*
+(`NAMESPACE`, `man/`, `inst/`), so the package-root accessor needed the same treatment.
+
+Also cleared the `Rd files` NOTE: `DESCRIPTION` wrote paths as `Data/{Original,Stata,R}/`
+and Rd treats braces as markup, so `checkRd` reported "Lost braces". Editing
+`DESCRIPTION` alone was **not** enough -- `man/datalib-package.Rd` is roxygen-generated
+and kept the stale text until `man/` was regenerated.
+
+```
+before:  Status 1 ERROR, 4 NOTEs   (suite dead, 0 tests run)
+after:   Status 3 NOTEs, exit 0    (FAIL 0, SKIP 6, PASS 203 under check)
+```
+
+Local runs are unchanged at 237 pass / 0 fail / **0 skip** -- the skips engage only
+when the corpus is genuinely absent.
+
+### Python: the PyPI metadata was absent, not unpolished
+
+Issue #22 called it "metadata polish". `pyproject.toml` shipped **0 classifiers and 0
+project URLs** -- a PyPI page that is unfiltered and unsearchable. Now 12 classifiers,
+4 project URLs, keywords, both authors with Minh credited, and a maintainer email.
+`Development Status :: 4 - Beta`, honest at 0.9.x. The URLs point at the **public**
+distribution repository: a project URL that 404s for everyone is worse than none.
+
+### Documentation
+
+Every version-bearing reference moved: both `README.md` stamps and its
+version-history lede, `stata/README.md`, the pinned artefact filenames in
+`r/README.md` and `python/README.md`, `internal/BRIEFING_microdata_archive.md`, and
+the help page. References that name 0.9.19 as *history* were left alone -- when the
+retired roots were removed, when the R helper changed -- because those statements
+remain true.
+
+### Also in this release, not code
+
+Two internal documents from investigating issue #21 across the whole HLT collection:
+
+- `internal/FEEDBACK_module_key_registry.md` -- structured feedback proposing that
+  `collections.yml`'s `linevar` be keyed by survey programme. DHS carries the roster
+  line in `hh_line_number` (78/78 modules); MICS carries it in
+  `respondent_line_number` (73/74). The declaration is right for DHS and wrong for
+  MICS, so issue #21's 73 "unkeyable" modules are datalib applying a DHS-shaped key to
+  MICS data. The MICS modules **are** uniquely keyed -- verified on ZWE 2019 across all
+  44,472 rows. If confirmed upstream, that is a schema change unblocking 4.9M rows with
+  no data regeneration. Also records that `_dlw.ado:116` hardcodes the value instead of
+  reading the registry, that `children` has no established key, and that
+  `surface.yml` declares parameters but not returns.
+- `internal/DRAFT_email_mics_key_variables.md` -- unsent draft asking the
+  harmonization owner which variables are authoritative.
+
+Both record two **false** results produced on the way, because each looked like a
+finding. A three-level glob against a five-level tree matched zero of 152 files and
+would have reported "no other country-years affected" -- the opposite of 73. And
+`household` was reported as having no unique key in 12 of 12 sampled vintages when the
+base key is unique in every one, because the probe demanded a line variable a
+household-level module has no reason to carry. Had that reached the email it would have
+alleged two defects that do not exist. A broken probe and a clean dataset look
+identical, so a negative result needs the same scrutiny as a positive one.
 
 ## [0.9.19] — 2026-07-26
 

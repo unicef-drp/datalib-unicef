@@ -39,6 +39,14 @@
 # VERSION is extensionless, so the deny-all above hides it without this rule
 !VERSION
 
+# r/.Rbuildignore is extensionless too, so the deny-all hides it. It has to be
+# tracked or the fix it encodes does not ship: without it `R CMD build` sweeps whatever
+# a sibling toolchain left in r/ into the tarball, and `R CMD check --as-cran` found 7
+# .pytest_cache entries inside the built package. Caught only because the file failed to
+# appear in `git status` after being written -- the same allowlist trap that once
+# published the net site without stata.toc.
+!r/.Rbuildignore
+
 #######################
 # For performance reasons, if a folder is already ignored, then
 # GitHub does not check the content for that folder for matches
@@ -56,6 +64,16 @@
 !/**/*.do
 !/**/*.ado
 !/**/*.sthlp
+
+# The Stata net-site manifests. The deny-all above hides them and neither *.ado nor
+# *.sthlp covers them, so in THIS repository they survived only by having been
+# tracked before the deny-all existed -- git skips .gitignore for files already in
+# the index. Any fresh export drops them, which is exactly what happened when the
+# public distribution repository was first built: it came out without the two files
+# that MAKE it a Stata net site, and -net install- from the documented public URL
+# returned 404. Verify with: git ls-files | git check-ignore --no-index --stdin
+!/stata/stata.toc
+!/stata/datalib.pkg
 
 # R-scrips and Rmarkdown-scripts
 !/**/*.R

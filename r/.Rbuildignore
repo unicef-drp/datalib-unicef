@@ -1,0 +1,16 @@
+# Keep the built tarball to the package. R CMD build otherwise sweeps in whatever a
+# sibling toolchain has left in this directory, and `R CMD check --as-cran` reports it
+# as "hidden files ... most likely included in error" -- correctly: a .pytest_cache
+# shipped inside an R package is confusing at best.
+#
+# This exists because 0.9.27's check found 7 .pytest_cache entries in the tarball. The
+# repo .gitignore does not catch them either: it is an allowlist whose `!*/` rule
+# re-includes every directory, so the cache is untracked but not ignored.
+^\.pytest_cache$
+^\.ruff_cache$
+^\.mypy_cache$
+^__pycache__$
+^\.Rproj\.user$
+^.*\.Rproj$
+^datalib\.Rcheck$
+^datalib_.*\.tar\.gz$

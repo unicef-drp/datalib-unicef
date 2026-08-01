@@ -1,0 +1,13 @@
+v 3
+d DATALIB
+d UNICEF Microdata Library - Data Loading and Processing Utility
+d Version 0.9.29 | 2026-08-01
+d Author: Joao Pedro Azevedo (jpazevedo@unicef.org)
+d
+d File Organization:
+d   src/d/  - Main datalib command and related utilities
+d   src/_/  - Internal helper/utility functions (prefixed with underscore)
+d   src/g/  - getuserconfig user-config loader
+d   src/m/  - mapzdrive network drive mapper
+d
+p datalib

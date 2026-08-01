@@ -4,16 +4,46 @@ build-backend = "hatchling.build"
 
 [project]
 name = "unicef-datalib"
-version = "0.9.19"
+version = "0.9.29"
 description = "Client for the UNICEF microdata library folder standard (Stata/R/Python shared contract v1)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "UNICEF D&A" }]
+authors = [
+    { name = "Joao Pedro Azevedo", email = "jpazevedo@unicef.org" },
+    { name = "Minh Cong Nguyen" },
+]
+maintainers = [{ name = "Joao Pedro Azevedo", email = "jpazevedo@unicef.org" }]
+keywords = ["survey", "microdata", "MICS", "DHS", "UNICEF", "data-management", "stata"]
+# A PyPI page with no classifiers is unfiltered and unsearchable: nothing tells the
+# index this is a scientific data package that runs anywhere and needs Python >= 3.10.
+# "Development Status :: 4 - Beta" is honest at 0.9.x and should move to 5 at 1.0.0.
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Sociology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
 dependencies = [
     "pyyaml>=6.0",
     "pandas>=2.0",
 ]
+
+# Point at the PUBLIC distribution repository, not the private development one: a
+# PyPI project URL that 404s for everyone is worse than none.
+[project.urls]
+Homepage = "https://github.com/unicef-drp/datalib-unicef"
+Repository = "https://github.com/unicef-drp/datalib-unicef"
+Changelog = "https://github.com/unicef-drp/datalib-unicef/blob/main/CHANGELOG.md"
+Issues = "https://github.com/unicef-drp/datalib-unicef/issues"
 
 [project.optional-dependencies]
 fidelity = ["pyreadstat>=1.2"]
