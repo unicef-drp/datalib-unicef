@@ -130,7 +130,7 @@ Stata has and the other two ports do not yet — tracked in the
 
 ## Version
 
-**v0.9.30** (2026-08-01) — see [CHANGELOG.md](../CHANGELOG.md) for the full version history.
+**v0.9.31** (2026-08-01) — see [CHANGELOG.md](../CHANGELOG.md) for the full version history.
 
 ## See Also
 
