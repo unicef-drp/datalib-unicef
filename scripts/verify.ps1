@@ -72,9 +72,13 @@ Write-Host ("=" * 72)
 # ---------------------------------------------------------------------------
 # 1. Version manifests
 #
-# Nine files carry the version. Each is pinned by a DIFFERENT test, so a partial bump
-# passes some suites and fails others -- which is exactly how 0.9.21 shipped with
-# pyproject.toml left behind. Checking them here fails in a second instead of a minute.
+# Several files carry the version, each pinned by a DIFFERENT test, so a partial bump passes
+# some suites and fails others -- which is exactly how 0.9.21 shipped with pyproject.toml left
+# behind. Checking them here fails in a second instead of a minute.
+#
+# No count is stated on purpose. Every time this comment named one it went stale, and a
+# confident wrong number is worse than none: the second half of this check DISCOVERS stale
+# references rather than trusting the list below to be complete.
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "1. version manifests" -ForegroundColor Yellow
@@ -100,6 +104,48 @@ foreach ($c in $checks) {
     $hit = Select-String -Path $path -Pattern $c.Pattern -List -ErrorAction SilentlyContinue
     if ($null -eq $hit) { $badVersion += "$($c.File) does not carry $version" }
 }
+
+# The list above is PRESENCE-based: it asks whether each named file carries the current
+# version. It cannot see a file carrying a STALE one, and that is the failure that keeps
+# happening -- the enumeration has been short three times now (0.9.21 shipped without
+# pyproject.toml; the prose said "seven" when it was nine; and 0.9.32 reported "all
+# manifests agree" while r/R/datalib-package.R, r/man/datalib-package.Rd and r/README.md
+# still named older tarballs in copy-pasteable install commands).
+#
+# So DISCOVER instead of enumerate: every reference to a VERSIONED ARTEFACT -- a
+# datalib_<v>.tar.gz or a unicef_datalib-<v>-py3 wheel -- must name the current version.
+#
+# Deliberately BROAD: it matches such a filename wherever it appears, not only inside
+# something shaped like an install command. A false positive costs one visible line in a
+# local run; a miss ships documentation pointing at a file that may not exist, which is the
+# failure that has now recurred three times. Narrowing would trade a cheap failure for an
+# expensive one.
+#
+# The cost of breadth is that legitimate historical quotations match too, so those are
+# exempted EXPLICITLY and with the reason. A verbatim error transcript must not be bumped,
+# or it stops being a record of what actually happened.
+#
+# Paths are normalised to forward slashes. $rel derives from FullName, which is
+# separator-dependent, so a hard-coded 'r\README.md' would silently stop matching under
+# pwsh on Linux or macOS -- and an exemption that stops matching is a false failure on a
+# platform nobody here tests. This script ships publicly, so that platform is a stranger's.
+$exempt = @(
+    @{ File = 'r/README.md'; Version = '0.9.27'
+       Why  = 'verbatim RStudio error transcript from the 0.9.27 diagnosis' }
+)
+$refRe = '(?:datalib_|unicef_datalib-)(\d+\.\d+\.\d+)'
+Get-ChildItem $repo -Recurse -File -Include *.md,*.R,*.Rd,*.py,*.ado,*.sthlp,*.do,*.toml,*.yml |
+    Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]|CHANGELOG\.md$|\.Rcheck[\\/]|__pycache__|[\\/]dist[\\/]' } |
+    ForEach-Object {
+        $rel = $_.FullName.Substring($repo.Length + 1) -replace '\\', '/'
+        foreach ($m in [regex]::Matches([IO.File]::ReadAllText($_.FullName), $refRe)) {
+            $found = $m.Groups[1].Value
+            if ($found -eq $version) { continue }
+            if ($exempt | Where-Object { $_.File -eq $rel -and $_.Version -eq $found }) { continue }
+            $badVersion += "$rel names datalib $found (current is $version)"
+        }
+    }
+$badVersion = $badVersion | Select-Object -Unique
 if ($badVersion.Count -eq 0) {
     Write-Host "   all manifests agree" -ForegroundColor Green
     Set-Result 'versions' $true "all agree on $version"
