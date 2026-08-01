@@ -4,10 +4,15 @@
 
 .DESCRIPTION
     .github/workflows/conformance.yml covers the R and Python legs on Linux and Windows,
-    but Actions has been billing-blocked org-wide since v0.9.4: every job in that
-    workflow fails after ~2 seconds with zero steps, which is the signature of a job
-    that never started. Until billing is fixed, THIS is the gate -- run it before every
-    release and paste the summary into the PR.
+    Actions was billing-blocked org-wide from v0.9.4 until the quota reset on
+    2026-08-01, and every job failed after ~2 seconds with zero steps -- the signature of
+    a job that never started. CI runs again now, and its first green run immediately found
+    a test that produced false failures under the default shallow checkout, which is a
+    fair argument for not relying on local runs alone.
+
+    This script is still worth running BEFORE pushing: it is faster than a round trip
+    through Actions, it checks the version manifests that no CI job covers, and it is the
+    only gate that exists for the Stata leg.
 
     What it checks, in the order that fails fastest:
 
@@ -314,8 +319,9 @@ foreach ($k in $results.Keys) {
 Write-Host "  - [ ] stata     NOT RUN here -- no CI licence, and batch Stata on Windows"
 Write-Host "        is untrustworthy in a script. Manual gate:"
 Write-Host "        do stata/tests/run_conformance.do"
-Write-Host "  - [ ] GitHub Actions is billing-blocked org-wide; every job fails in ~2s"
-Write-Host "        with zero steps, so this local run is the gate."
+Write-Host "  - [ ] GitHub Actions covers the R and Python legs on Linux and Windows;"
+Write-Host "        this run additionally checks the version manifests, which no CI"
+Write-Host "        job does, and is the only gate for Stata."
 Write-Host ""
 
 Pop-Location

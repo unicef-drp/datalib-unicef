@@ -14,7 +14,7 @@ LAN share, and -- since the public distribution repository went live -- the whee
 attached to its GitHub release.
 
 ```bash
-pip install --upgrade "Z:/_pkg/datalib/python/unicef_datalib-0.9.28-py3-none-any.whl"
+pip install --upgrade "Z:/_pkg/datalib/python/unicef_datalib-0.9.30-py3-none-any.whl"
 ```
 
 A built **wheel** is published per version -- deliberately, not a source tree: this

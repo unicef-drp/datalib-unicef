@@ -110,7 +110,9 @@ aliases:
 # Must equal the 13 canonical commands with the datalib_ prefix removed.
 stata_subcommands: [resolve, load, catalog, countries, surveys, vintages, adaptations, files, create, config, root, browse, map_drive]
 
-# Arbitrary-tree navigation. NOT part of the contract, and Stata-only.
+# Arbitrary-tree navigation. NOT part of the contract. Implemented in all three
+# legs since 0.9.27; only the CLICKABLE DISPLAY is Stata-only, because there is no
+# console hyperlink in R or Python (see tests/DIVERGENCES.md).
 #
 # Every other navigation path in this package reads ancestry out of the folder NAME:
 # _foldernav counts underscores to rebuild CCC/CCC_YYYY_SURVEY/, and datalib_browse
@@ -160,7 +162,8 @@ explorer:
     name: datalib_explorer
     args: [path, root, sizes, max_items]
 
-# Recursive indexing. NOT part of the contract, and Stata-only.
+# Recursive indexing. NOT part of the contract. Implemented in all three legs since
+# 0.9.27, returning the same columns with the same meanings.
 #
 # explorer answers "what is in THIS folder" and returns r(). index walks a whole subtree
 # and returns a DATASET. The split is not stylistic: reaching one file five levels down

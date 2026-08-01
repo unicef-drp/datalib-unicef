@@ -3,6 +3,92 @@
 All notable changes to **datalib-unicef**. Versioning follows [SemVer](https://semver.org/);
 commits follow Conventional Commits.
 
+## [0.9.30] — 2026-08-01
+
+**CI ran for the first time since v0.9.4**, the monthly Actions quota having reset, and it
+immediately found a test that produces FALSE FAILURES under the standard CI checkout.
+
+R passed on both platforms. All four Python jobs failed, claiming files like
+`datalib_resolve.ado` — stamped 0.9.3 and untouched for months — had "changed in 0.9.29".
+
+`actions/checkout@v4` defaults to `fetch-depth: 1`. `test_stamps.py` asks git which
+release last changed each file, and with a single commit available `git log -1 -- <file>`
+returns the tip for **every** file, so every stamp below the current VERSION is reported
+stale. Reproduced locally with `git clone --depth 1` before changing anything:
+
+```
+is-shallow: true    commits available: 1
+git log -1 -- stata/src/d/datalib_resolve.ado  ->  3ec686a (VERSION there: 0.9.29)
+its actual stamp: *! Version: 0.9.3
+```
+
+Two fixes, because either alone leaves the trap armed:
+
+- `fetch-depth: 0` on both workflow jobs, so the test has the history it needs.
+- The test now **skips on a shallow clone**, naming the reason. Depth can be reduced again
+  by anyone editing the workflow, and a test that then reports confident nonsense is worse
+  than one that admits it cannot tell. Verified both ways: 3 passed on a full clone, 1
+  skipped on a shallow one.
+
+This is the third distinct failure mode found in this one guard — it previously compared
+against the wrong commit for uncommitted files (0.9.23), and before that did not exist at
+all while `datalib.sthlp` drifted five releases. The guard is worth keeping; it just keeps
+needing to be told what it cannot know.
+
+## [0.9.29] — 2026-08-01
+
+Three findings from the automated review on the public sync PR, and two rejected with
+measurements.
+
+### Accepted
+
+**An unreadable directory vanished silently.** `datalib_index` in Python caught `OSError`
+and `continue`d — directly contradicting the comment immediately above it, which said a
+directory that cannot be read "must not be reported as" empty. It returned a partial index
+with nothing a caller could test. That is the same failure this function was already
+corrected for once, in 0.9.21, when `r(bytes)` was a silent partial sum.
+
+Unreadable directories are now counted, named in a warning, and exposed as
+`df.attrs["unreadable"]`. `truncated` is widened to mean **incomplete for either reason** —
+the node cap, or a directory that could not be read — so a caller has one flag to check
+rather than two, with `unreadable` distinguishing which applied.
+
+Verified the hard way: the new test was run against the old `continue` and confirmed to
+fail, then against the fix and confirmed to pass. A regression test that has never failed
+is a guess.
+
+**`queue.pop(0)` was O(n)**, making a wide tree quadratic in queue length — and a wide tree
+is precisely the documented workload. Now a `collections.deque`. Immaterial beside 0.35 s of
+I/O per folder, but free.
+
+**`config/surface.yml` still called explorer and index "Stata-only"** in the header comment
+of blocks that have declared R and Python implementations since 0.9.27. Only the *clickable
+display* is Stata-only, and the comment now says so.
+
+### Rejected, with the measurement
+
+The review reported `max_depth`/`maxdepth()` as off by one in both R and Stata: that
+`cur_depth + 1 < max_depth` "prevents visiting directories at depth == max_depth", so
+`max_depth(1)` would not return the starting node's children.
+
+Measured against a four-level tree instead of reasoned about:
+
+| `max_depth` | file depths returned | dir depths returned |
+|---|---|---|
+| 0 | 1,2,3,4 | 1,2,3 |
+| 1 | 1 | 1 |
+| 2 | 1,2 | 1,2 |
+| 3 | 1,2,3 | 1,2,3 |
+
+`max_depth = 1` returns exactly the starting node's children, which is what the
+documentation promises. The claim conflates **emitting a row** for a child with
+**descending into** it: the row is emitted while processing the *parent*, and enqueueing
+only controls whether that child's own contents get listed. Refusing to enqueue a depth-1
+directory still yields its row — it just produces no depth-2 rows, which is what "stop
+descending past this depth" means.
+
+No change made, in either leg.
+
 ## [0.9.28] — 2026-07-30
 
 R gains a package overview page and a runnable tour. Nothing in any leg's behaviour
