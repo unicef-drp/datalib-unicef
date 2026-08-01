@@ -6,19 +6,27 @@ commits follow Conventional Commits.
 ## [0.9.31] — 2026-08-01
 
 The public distribution's CI was red, and its PRs had been merging without a green check.
-Two unrelated causes, found by looking at the closed PRs rather than at the code.
 
 ### Why no PR on the public repo ever showed a check
 
-**#1 and #2 merged while Actions was billing-blocked org-wide.** Zero runs fired, so there
-was no status to display — not a failing check, an absent one.
+**All four failed the same test, for the same reason.** Each ran 7 check runs; in every case
+the four Python jobs failed on
+`test_stamps.py::test_no_stamp_is_older_than_the_release_that_changed_it`, naming
+`stata/src/d/datalib_resolve.ado: stamps 0.9.3`, while both R jobs passed.
 
-**#3 and #4 ran CI and it failed** on one test, `test_stamps.py`.
+**They merged regardless, because `required_status_checks` is `NONE` on both repositories.**
+Protection blocks direct pushes and enforces admins, but does not gate on CI. That was
+rational while Actions was billing-blocked org-wide — requiring checks that could never pass
+would have hard-locked both repos, since `enforce_admins` is also on — and is worth
+revisiting now that CI runs.
 
-**And all four merged regardless, because `required_status_checks` is `NONE` on both
-repositories.** Protection blocks direct pushes and enforces admins, but does not gate on
-CI. That was rational while Actions was dead for months — requiring checks that could never
-pass would have blocked all work — and is worth revisiting now that CI runs.
+Not two causes. An earlier draft of this entry claimed #1 and #2 had merged during the
+billing block with zero runs fired. That was a stale fact carried forward from when the block
+was real (v0.9.4 through roughly 2026-07-27) and attached to these PRs without checking the
+check-run history, which shows 7 runs on each. A public repository on standard runners is
+never billing-blocked in the first place: Actions is free and unlimited there, so the story
+could not have been true. Recorded because the wrong version was published to five places
+before the arithmetic was questioned.
 
 ### Why the stamp test cannot pass in a generated repository
 
