@@ -503,7 +503,7 @@ To cite the software directly:
 - Developer info: See [.github/copilot-instructions.md](.github/copilot-instructions.md)
 
 **Last Updated:** 2026-08-01  
-**Current Version:** 0.9.32  
+**Current Version:** 0.9.33  
 **Repository:** https://github.com/unicef-drp/datalib-unicef
 
 ---

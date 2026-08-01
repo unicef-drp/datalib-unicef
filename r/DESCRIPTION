@@ -1,6 +1,6 @@
 Package: datalib
 Title: Manage Versioned Survey Microdata Libraries
-Version: 0.9.32
+Version: 0.9.33
 Authors@R: c(
     person("Joao Pedro", "Azevedo", email = "jpazevedo@unicef.org", role = c("aut", "cre")))
 Description: Client for a standardized, versioned survey microdata library

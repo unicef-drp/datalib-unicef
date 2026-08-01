@@ -14,7 +14,7 @@ supported install path. **Note the `utils::` prefix** — it is not decoration, 
 below:
 
 ```r
-utils::install.packages("Z:/_pkg/datalib/R/datalib_0.9.32.tar.gz",
+utils::install.packages("Z:/_pkg/datalib/R/datalib_0.9.33.tar.gz",
                         repos = NULL, type = "source")
 ```
 
@@ -78,7 +78,7 @@ post-install error like this:
 Equivalent, and immune because it never enters R's console at all:
 
 ```bash
-R CMD INSTALL "Z:/_pkg/datalib/R/datalib_0.9.28.tar.gz"
+R CMD INSTALL "Z:/_pkg/datalib/R/datalib_0.9.33.tar.gz"
 ```
 
 ### Dependencies are not resolved for you

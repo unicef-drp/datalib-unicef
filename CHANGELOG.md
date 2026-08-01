@@ -3,6 +3,59 @@
 All notable changes to **datalib-unicef**. Versioning follows [SemVer](https://semver.org/);
 commits follow Conventional Commits.
 
+## [0.9.33] — 2026-08-01
+
+A version bump for a documentation defect, because the defect is *in* a published artefact.
+
+### Three stale install references, and the check that could not see them
+
+`r/R/datalib-package.R` and `r/man/datalib-package.Rd` still named `datalib_0.9.31.tar.gz` in
+the install command shown by `?datalib` after the 0.9.32 bump — so the R package documentation
+contradicted the README beside it and would send anyone copying it to a file that may not
+exist. Found by Copilot on the public sync PR.
+
+`scripts/verify.ps1` reported **"all manifests agree"** while that was true. Its list is
+*presence*-based: it asks whether each **named** file carries the current version, so it cannot
+see a file carrying a **stale** one. That list has now been short three times — 0.9.21 shipped
+without `pyproject.toml`; the comment claimed "seven" files when there were nine; and 0.9.32
+missed these two plus `r/README.md`.
+
+It now **discovers** rather than enumerates: every reference to a versioned artefact
+(`datalib_<v>.tar.gz`, `unicef_datalib-<v>-py3`) must name the current version, anywhere in the
+tree. Scanning immediately found one Copilot had not — `r/README.md:81`, an `R CMD INSTALL`
+line still on 0.9.28 — which is the argument for discovery over a longer list.
+
+The comment no longer states how many files carry the version. Every time it named a count the
+count went stale, and a confident wrong number is worse than none.
+
+**Not bumped:** the `0.9.27` strings at `r/README.md:35/37/57` are a verbatim RStudio error
+transcript from the diagnosis of that bug. Bumping them would falsify a record of what actually
+happened, so they are exempted explicitly, with that reason, rather than by loosening the
+pattern.
+
+### Why this is a release and not an amendment
+
+The 0.9.32 R tarball was already published to the share, and `datalib-package.Rd` ships *inside
+it* — so the wrong install path is in an artefact an operator may already hold. Overwriting a
+published version in place is the one thing this share must never do: a stale in-place overwrite
+here once downgraded a working install. Bumping is the only honest fix.
+
+### Also, from Copilot's review of the fix itself
+
+- **Path separators were not normalised.** `$rel` derives from `FullName`, so a hard-coded
+  `'r\README.md'` exemption would silently stop matching under `pwsh` on Linux or macOS — and
+  an exemption that stops matching is a false failure on a platform nobody here tests. This
+  script ships publicly, so that platform is a stranger's. Now normalised to forward slashes.
+- **The comment claimed the scan was "scoped to install commands"; it is not**, and should not
+  be. It matches a versioned artefact name wherever it appears. A false positive costs one
+  visible line in a local run; a miss ships documentation pointing at a file that does not
+  exist. Narrowing would trade a cheap failure for an expensive one — so the comment was
+  corrected to describe the breadth and justify it, rather than the scan narrowed to match an
+  inaccurate comment. The exemption mechanism carries the cost, and is verified load-bearing:
+  removing it reports the transcript.
+
+No behavioural change to any language leg.
+
 ## [0.9.32] — 2026-08-01
 
 Everything here comes from Copilot's review comments on the 0.9.31 PRs — nine inline
