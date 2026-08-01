@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "unicef-datalib"
-version = "0.9.28"
+version = "0.9.29"
 description = "Client for the UNICEF microdata library folder standard (Stata/R/Python shared contract v1)"
 readme = "README.md"
 requires-python = ">=3.10"

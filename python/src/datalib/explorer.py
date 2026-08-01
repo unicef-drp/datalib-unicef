@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import re
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -356,8 +357,14 @@ def datalib_index(
     -------
     pandas.DataFrame
         Columns ``relpath parent name ext depth is_dir bytes looks_grammar``,
-        with ``nodes n_files n_dirs truncated seconds root path`` in
+        with ``nodes n_files n_dirs truncated unreadable seconds root path`` in
         ``df.attrs``.
+
+        ``truncated`` means the result is INCOMPLETE, for either reason: the node
+        cap stopped the walk, or a directory could not be read. ``unreadable``
+        counts the latter, so the two remain distinguishable. One flag to check
+        beats two, and a partial index that announces nothing is the failure this
+        function has already been corrected for once.
 
         There are deliberately **no** country or survey columns. The reason
         these functions exist is that these trees do *not* follow the naming
@@ -386,26 +393,34 @@ def datalib_index(
     started = time.monotonic()
     rx = re.compile(pattern) if pattern else None
 
-    # A worklist, not recursion: recursion depth is finite and a 193-country tree
-    # is not, and a queue makes the node cap exact.
-    queue: list[tuple[str, int]] = [(rel, 0)]
+    # A worklist, not recursion: recursion depth is finite and a whole-archive tree is
+    # not, and a queue makes the node cap exact.
+    #
+    # deque, not list. list.pop(0) is O(n), so a wide tree -- exactly the target workload
+    # -- turns the walk quadratic in queue length. Irrelevant beside 0.35 s of I/O per
+    # folder, but free to avoid.
+    queue: deque[tuple[str, int]] = deque([(rel, 0)])
     rows: list[dict[str, object]] = []
     nodes = n_files = n_dirs = 0
     truncated = False
+    unreadable: list[str] = []
 
     while queue:
         if nodes >= max_nodes:
             truncated = True
             break
-        cur, cur_depth = queue.pop(0)
+        cur, cur_depth = queue.popleft()
         nodes += 1
 
         here = Path(f"{r}/{cur}") if cur else Path(r)
         try:
             kids, files = _list_node(here)
         except OSError:
-            # A directory that exists but cannot be read is not an empty
-            # directory, and must not be reported as one.
+            # A directory that exists but cannot be read is not an empty directory, and
+            # must not be reported as one -- so it is RECORDED. An earlier version
+            # `continue`d here, which did precisely what the comment forbade: it returned
+            # a partial index with nothing set for a caller to test.
+            unreadable.append(cur or ".")
             continue
 
         if rx is not None:
@@ -469,17 +484,35 @@ def datalib_index(
         "looks_grammar",
     ]
     df = pd.DataFrame(rows, columns=columns)
+    # `truncated` means INCOMPLETE, from either cause -- the node cap or a directory that
+    # could not be read. One flag to check is better than two, and `unreadable` says which
+    # applied.
+    truncated = truncated or bool(unreadable)
     df.attrs.update(
         nodes=nodes,
         n_files=n_files,
         n_dirs=n_dirs,
         truncated=truncated,
+        unreadable=len(unreadable),
         seconds=time.monotonic() - started,
         root=r,
         path=rel,
     )
 
-    if truncated:
+    if unreadable:
+        import warnings
+
+        shown = ", ".join(unreadable[:3])
+        more = f" (and {len(unreadable) - 3} more)" if len(unreadable) > 3 else ""
+        warnings.warn(
+            f"{len(unreadable)} director"
+            f"{'y' if len(unreadable) == 1 else 'ies'} could not be read and "
+            f"{'its' if len(unreadable) == 1 else 'their'} contents are missing from this "
+            f"index: {shown}{more}. Marked truncated; see df.attrs['unreadable'].",
+            stacklevel=2,
+        )
+
+    if truncated and nodes >= max_nodes:
         import warnings
 
         # Say what the number IS. The walk is breadth-first, so the queue holds

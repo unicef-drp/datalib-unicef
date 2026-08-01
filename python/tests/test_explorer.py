@@ -143,6 +143,45 @@ def test_index_flags_the_node_cap_and_warns(tree: Path) -> None:
     assert capped.attrs["n_files"] < 4
 
 
+def test_index_announces_directories_it_could_not_read(tree: Path, monkeypatch) -> None:
+    """An unreadable directory must not vanish silently.
+
+    The first version caught OSError and `continue`d, directly contradicting the comment
+    above it, and returned a partial index with nothing a caller could test. Raised in
+    review on the public sync PR, and correct: a partial answer that announces nothing is
+    the failure mode this module has already been fixed for once.
+
+    Mocked rather than chmod-ed: making a directory genuinely unreadable is awkward and
+    unreliable on Windows, where the test would silently pass for the wrong reason.
+    """
+    import datalib.explorer as ex
+
+    real = ex._list_node
+
+    def fail_on_deep(path):
+        if path.name == "Deep One":
+            raise PermissionError("simulated: cannot read")
+        return real(path)
+
+    monkeypatch.setattr(ex, "_list_node", fail_on_deep)
+
+    with pytest.warns(UserWarning, match="could not be read"):
+        idx = ex.datalib_index(root=tree)
+
+    assert idx.attrs["unreadable"] == 1
+    # truncated means INCOMPLETE, from either cause -- so one flag suffices.
+    assert idx.attrs["truncated"] is True
+    # and the file below the unreadable directory is genuinely absent, which is the
+    # whole reason the caller needed telling.
+    assert "Alpha Land/Deep One/leaf.csv" not in set(idx["relpath"])
+
+
+def test_index_reports_no_unreadable_when_all_is_well(tree: Path) -> None:
+    idx = datalib_index(root=tree)
+    assert idx.attrs["unreadable"] == 0
+    assert idx.attrs["truncated"] is False
+
+
 def test_index_bytes_is_missing_until_measured(tree: Path) -> None:
     plain = datalib_index(root=tree)
     assert plain["bytes"].isna().all()

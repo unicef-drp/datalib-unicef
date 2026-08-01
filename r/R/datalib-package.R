@@ -128,7 +128,7 @@
 #' plain `install.packages()` installs correctly but then errors in RStudio, whose
 #' hook mistakes the tarball path for an installed-package directory:
 #'
-#' \preformatted{utils::install.packages("Z:/_pkg/datalib/R/datalib_0.9.28.tar.gz",
+#' \preformatted{utils::install.packages("Z:/_pkg/datalib/R/datalib_0.9.29.tar.gz",
 #'                         repos = NULL, type = "source")}
 #'
 #' `repos = NULL` resolves no dependencies, so on a fresh machine install
