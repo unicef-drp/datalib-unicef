@@ -16,19 +16,27 @@
 
     What it checks, in the order that fails fastest:
 
-      1. version manifests   nine files carry the version and each is pinned by a
-                             different test; they must all agree with VERSION
+      1. version manifests   every file that carries the version must agree with VERSION,
+                             and no file may name a stale versioned artefact
       2. Python              pytest over python/tests
       3. R                   testthat over r/tests/testthat
-      4. R CMD check          --as-cran, only with -Full (it is slow)
+      4. R CMD check         --as-cran, only with -Full (it is slow)
+      5. stata record        the recorded result of the last hand-run must be CURRENT
 
-    The STATA leg is not run here, and that is stated rather than silently omitted.
+    No count of version-carrying files is given here on purpose. Every time this said
+    "nine" it went stale, and check 1 now discovers them rather than trusting a list.
+
+    The STATA leg is still not run here, and that is stated rather than silently omitted.
     Stata has no CI licence, and batch-mode Stata on Windows is not trustworthy in a
     script: the executable can hang after finishing, writes its log to the working
     directory rather than where asked, and its exit code does not reflect whether the
     do-file failed. So it stays a manual gate:
 
         do stata/tests/run_conformance.do        (expect NNN/NNN passed, 0 skipped)
+
+    What check 5 adds is that the RESULT is recorded, in tests/stata-conformance.txt, and
+    that a record behind VERSION fails this script. A manual gate whose result nobody
+    writes down cannot be told apart from a gate never run -- 0.9.33 shipped that way.
 
     Exit code is 0 only when every leg that ran passed.
 
@@ -349,6 +357,57 @@ if ($Full -and -not $SkipR) {
 }
 
 # ---------------------------------------------------------------------------
+# 5. Stata conformance record
+#
+# The Stata leg is NOT run from here: there is no licence on CI runners, and batch Stata
+# on Windows is untrustworthy in a script (it can hang after finishing, and its exit code
+# does not reliably report failure). It is a manual gate:
+#
+#     do stata/tests/run_conformance.do
+#
+# What IS checked is whether the recorded result of the last hand-run is CURRENT. A manual
+# gate whose result nobody writes down cannot be distinguished from a gate never run --
+# 0.9.33 shipped exactly that way, its Stata leg unverified by anything, and the omission
+# was invisible because this script simply printed "NOT RUN" and moved on.
+#
+# Deliberately a first-class leg in $results rather than a line printed later: a stale
+# record must FAIL the run. Placed before the verdict below for that reason -- $allOk is
+# computed from $results, so anything set after it prints a warning that changes nothing,
+# which is the failure mode this whole check exists to prevent.
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host "5. stata conformance record" -ForegroundColor Yellow
+$stataRec = Join-Path (Join-Path $repo 'tests') 'stata-conformance.txt'
+if (-not (Test-Path $stataRec)) {
+    Write-Host "   MISSING tests/stata-conformance.txt -- no record it was ever run" -ForegroundColor Red
+    Set-Result 'stata' $false 'no record; run stata/tests/run_conformance.do'
+} else {
+    $rec = Get-Content -Raw $stataRec
+    $rv = if ($rec -match '(?m)^version:\s*(\S+)')    { $Matches[1] } else { $null }
+    $rd = if ($rec -match '(?m)^date:\s*(\S+)')       { $Matches[1] } else { '?' }
+    # $null, NOT '?'. A '?' placeholder is TRUTHY, so `-not $rr' could never fire and a
+    # record carrying version: but no result: line sailed through and PASSED, printing
+    # "?, recorded at 0.9.33". $rd stays '?' because the date is informational only.
+    $rr = if ($rec -match '(?m)^result:\s*(.+?)\s*$') { $Matches[1] } else { $null }
+    if (-not $rv -or -not $rr) {
+        # Distinct from stale. Reporting "STALE: last gated at  ()" for a file that simply
+        # has no version: line names the wrong problem and sends the reader to re-run Stata
+        # when the fix is to repair three lines of text.
+        Write-Host "   UNPARSEABLE tests/stata-conformance.txt -- no 'version:' or 'result:' line" -ForegroundColor Red
+        Write-Host  "   expected, verbatim:  version: x.y.z / date: YYYY-MM-DD / result: <tally>" -ForegroundColor Red
+        Set-Result 'stata' $false 'record exists but cannot be parsed (no version:/result: line)'
+    }
+    elseif ($rv -eq $version) {
+        Write-Host ("   {0}, recorded at {1} ({2})" -f $rr, $rv, $rd) -ForegroundColor Green
+        Set-Result 'stata' $true ("{0} at {1}, recorded {2} (run by hand; CI has no licence)" -f $rr, $rv, $rd)
+    } else {
+        Write-Host ("   STALE: last gated at {0} ({1}), current is {2}" -f $rv, $rd, $version) -ForegroundColor Red
+        Write-Host  "   run: do stata/tests/run_conformance.do   then update the record" -ForegroundColor Red
+        Set-Result 'stata' $false ("STALE: last gated at {0}, current is {1}" -f $rv, $version)
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Verdict
 # ---------------------------------------------------------------------------
 $allOk = -not ($results.Values -contains $false)
@@ -362,9 +421,8 @@ foreach ($k in $results.Keys) {
     $mark = if ($results[$k]) { 'x' } else { ' ' }
     Write-Host ("  - [{0}] {1,-9} {2}" -f $mark, $k, $detail[$k])
 }
-Write-Host "  - [ ] stata     NOT RUN here -- no CI licence, and batch Stata on Windows"
-Write-Host "        is untrustworthy in a script. Manual gate:"
-Write-Host "        do stata/tests/run_conformance.do"
+Write-Host "        (the stata line above is a RECORDED hand-run, not something this"
+Write-Host "         script executed -- see tests/stata-conformance.txt)"
 Write-Host "  - [ ] GitHub Actions covers the R and Python legs on Linux and Windows;"
 Write-Host "        this run additionally checks the version manifests, which no CI"
 Write-Host "        job does, and is the only gate for Stata."

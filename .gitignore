@@ -75,6 +75,13 @@
 !/stata/stata.toc
 !/stata/datalib.pkg
 
+# The Stata conformance record. Deny-all above means a .txt is invisible unless named,
+# and `git add -A' skips it SILENTLY -- which is how this file was first committed as a
+# check for a record that was never added, and how the public distribution once shipped
+# without stata.toc and datalib.pkg. Named explicitly rather than allowlisting *.txt,
+# which would sweep in anything.
+!/tests/stata-conformance.txt
+
 # R-scrips and Rmarkdown-scripts
 !/**/*.R
 !/**/*.rds
