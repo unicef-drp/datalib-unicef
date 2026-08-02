@@ -1,0 +1,35 @@
+# Result of the one test leg no CI job can run.
+#
+# GitHub Actions covers R and Python on Linux and Windows. It cannot cover Stata:
+# there is no licence on the runners, and batch Stata on Windows is untrustworthy in
+# a script anyway (it can hang after finishing, and its exit code does not reliably
+# report failure). So the Stata leg is a MANUAL gate, run by a person:
+#
+#     do stata/tests/run_conformance.do
+#
+# A manual gate whose result is not written down is not a gate -- nobody reading the
+# repository can tell whether it was ever run, or against which version. 0.9.33
+# shipped before this file existed, and the run below happened after the release.
+# This file exists so an unrecorded release cannot recur silently. scripts/verify.ps1
+# reads it and FAILS -- not warns -- when `version' here is behind VERSION, or when the
+# record is missing or cannot be parsed. It is a gate, so it stops the run; calling it a
+# warning would understate it, and an understated gate is one people route around.
+#
+# Update it by hand after a passing run. Do not update it without one.
+
+version: 0.9.33
+date: 2026-08-01
+stata: 17
+result: 156/156 passed, 0 skipped
+
+# Notes on this run
+#
+# Exercised the surface 0.9.32 changed: u17 (a session matching disk is not reported
+# stale), u18 (a session behind the disk copy is detected and named) and u19 (no
+# running() -> no claim either way) all pass, which is what the RUNNING literal and
+# the *! stamp bump are for. surface[explorer] plus the x01-x18 and ix01-ix11
+# families also pass.
+#
+# Run through a local licensed Stata rather than a shell, so the batch-exit-code
+# problem above does not apply: the harness prints its own tally, and the tally is
+# what was read.
