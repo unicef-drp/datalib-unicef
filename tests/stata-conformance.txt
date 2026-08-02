@@ -10,8 +10,10 @@
 # A manual gate whose result is not written down is not a gate -- nobody reading the
 # repository can tell whether it was ever run, or against which version. 0.9.33
 # shipped before this file existed, and the run below happened after the release.
-# This file exists so that cannot recur silently: scripts/verify.ps1 reads it and
-# warns when `version' here is behind VERSION.
+# This file exists so an unrecorded release cannot recur silently. scripts/verify.ps1
+# reads it and FAILS -- not warns -- when `version' here is behind VERSION, or when the
+# record is missing or cannot be parsed. It is a gate, so it stops the run; calling it a
+# warning would understate it, and an understated gate is one people route around.
 #
 # Update it by hand after a passing run. Do not update it without one.
 
