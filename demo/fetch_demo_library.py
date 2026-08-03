@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -231,6 +232,36 @@ def partition(df, man: dict, root: Path) -> int:
     return written
 
 
+def _names_country(filename: str, iso3: str) -> bool:
+    """Does this filename name this country, as a TOKEN rather than a substring?
+
+    Substring matching put other countries' files in a country's folder. Real collisions
+    among the ISO3 codes this demo uses:
+
+        ETH in "METHODOLOGY.do"       COL in "PROTOCOL.dta"      IDN in "hhIDNumbers.csv"
+
+    all match on a substring test and none of them names a country. Placing a file in the
+    wrong country's directory is the same class of error as the YEAR-only partition bug: the
+    demo would run, show plausible output, and be wrong about which country it described.
+
+    KNOWN LIMIT, and it errs the safe way. Token matching requires the ISO3 to appear as its
+    own separated field, so plenty of real provider filenames will NOT match::
+
+        ZWE_2019_hh.dta   tokens ['2019','dta','hh','zwe']   matches
+        etZW61FL.DTA      tokens ['dta','etzw61fl']          does NOT
+        ZWHR62DT.DTA      tokens ['dta','zwhr62dt']          does NOT
+        zw_hh.sav         tokens ['hh','sav','zw']           does NOT -- 2-letter DHS code
+
+    DHS-style names glue a two-letter country code to the recode and version, so nothing in
+    them is an ISO3 token. Those files are SKIPPED and named in the output rather than placed,
+    which is the direction to fail in: an operator who sees "nothing matched" renames or moves
+    the files, whereas a misplaced file is discovered later, if at all. Widen this only with a
+    country-code table, never by relaxing back to a substring test.
+    """
+    tokens = {tok.lower() for tok in re.split(r"[^A-Za-z0-9]+", filename) if tok}
+    return iso3.lower() in tokens
+
+
 def place_mics(man: dict, root: Path, src: Path) -> int:
     """Copy MICS files the user already downloaded into the expected locations."""
     entries = man.get("mics_manual") or []
@@ -241,14 +272,21 @@ def place_mics(man: dict, root: Path, src: Path) -> int:
     if not src.is_dir():
         sys.exit(f"  --place-mics: {src} is not a directory")
 
+    # Every data file present, so a non-match can be REPORTED BY NAME rather than merely
+    # counted. The docstring promised named skips and this function only printed a per-survey
+    # summary, which left an operator knowing something failed but not which file to rename --
+    # and renaming is the whole remedy for a DHS-style name that carries no ISO3 token.
+    candidates = [p for p in src.rglob("*")
+                  if p.is_file() and p.suffix.lower() in DATA_SUFFIXES]
+    matched_any: set[Path] = set()
+
     placed = 0
     for s in entries:
         survey = f"{s['iso3']}_{s['year']}_{s['programme']}"
-        found = [p for p in src.rglob("*")
-                 if p.is_file() and p.suffix.lower() in DATA_SUFFIXES
-                 and s["iso3"].lower() in p.name.lower()]
+        found = [p for p in candidates if _names_country(p.name, s["iso3"])]
+        matched_any.update(found)
         if not found:
-            print(f"    {survey}: nothing in {src} matched '{s['iso3']}' -- skipped")
+            print(f"    {survey}: nothing in {src} named '{s['iso3']}' as a token -- skipped")
             continue
         for v in s["vintages"]:
             d = stata_dir(root, s, f"{survey}_{v}")
@@ -258,6 +296,22 @@ def place_mics(man: dict, root: Path, src: Path) -> int:
             for f in found:
                 shutil.copy2(f, d / f.name)
                 placed += 1
+    # Relative to src, not just the basename: candidates comes from rglob, so two files in
+    # different subdirectories can share a name -- and the operator's next action is to find
+    # and rename a specific one, which a bare basename does not let them do.
+    unmatched = sorted(
+        p.relative_to(src).as_posix() for p in candidates if p not in matched_any
+    )
+    if unmatched:
+        # ALL of them, uncapped. A truncated list defeats the purpose: the operator's next
+        # action is to rename the files that did not match, and they cannot rename what they
+        # cannot see. Bounded by their own source directory, and this runs interactively.
+        print(f"  {len(unmatched)} data file(s) matched NO survey and were not placed:")
+        for name in unmatched:
+            print(f"    {name}")
+        print("  Token matching needs the ISO3 as its own field, so DHS-style names like")
+        print("  ZWHR62DT.DTA carry no ISO3 and cannot match. Rename them (ZWE_...) or add")
+        print("  the survey to mics_manual in demo/manifest.yml.")
     print(f"  placed {placed} file(s). They remain gitignored; do not force-add them.")
     return 0
 
