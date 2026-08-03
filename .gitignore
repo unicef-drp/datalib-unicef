@@ -239,3 +239,9 @@ tempCodeRunnerFile.do
 !/demo/datalib/**/
 !/demo/datalib/**/.gitkeep
 !/demo/datalib/.datalib
+
+# demo/_extract holds the RAW IPUMS download when --keep-extract is used. It sits outside
+# demo/datalib, so the deny above never covered it -- and IPUMS ships a Stata .do command
+# file with an extract, which `!/**/*.do' made committable. Nothing here is ever authored,
+# so the whole directory is denied with no exceptions.
+/demo/_extract/**

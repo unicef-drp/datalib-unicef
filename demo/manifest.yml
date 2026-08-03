@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------------
 # VERIFICATION STATUS — read before trusting the codes below
 # ---------------------------------------------------------------------------------
-# The `ipums.collection' string and every `ipums_sample' code below are UNVERIFIED.
+# The 'ipums.collection' string and every 'ipums_sample' code below are UNVERIFIED.
 # They were written without an IPUMS API key, so they could not be checked against
 # the live sample list, and IPUMS's own API reference is JavaScript-rendered and could
 # not be read either. The IPUMS API is documented as supporting IPUMS DHS, and the

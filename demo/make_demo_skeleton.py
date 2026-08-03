@@ -13,17 +13,25 @@ which is authored here, and is the thing datalib's grammar is about -- and every
 of data arrives at demo time under the user's own agreement.
 
 The shape is worth committing on its own merits: it is a reviewable, diffable statement
-of what the demo claims to contain, and `--check' turns a silent drift between the
+of what the demo claims to contain, and ``--check`` turns a silent drift between the
 manifest and the tree into a failure.
 
 WHY THE DENY-ALL .gitignore IS LOAD-BEARING HERE
 ------------------------------------------------
-.gitignore line 23 is `*', with specific re-includes. Under demo/ the effect is exactly
-what is wanted: .gitkeep, *.py, *.md and demo/*.yml are committable, and .dta, .csv,
-.zip and everything else a fetch produces are invisible to git. So a user who runs the
-fetcher and then `git add -A' commits nothing they should not. That is not luck -- it is
-the allowlist doing its job -- but it is verified rather than assumed: check_ignores()
-runs on every ordinary build, with no flag to remember.
+.gitignore opens with a deny-all ``*`` and re-includes by pattern. Those global re-includes
+are right for source and wrong inside a library, so two trees are RE-DENIED at the end of
+the file, where last-rule-wins makes it stick. They differ, and the difference matters:
+
+  demo/datalib/**    three exceptions -- directories, .gitkeep, the .datalib marker
+  demo/_extract/**   NO exceptions -- it holds the raw download and nothing authored
+
+That distinction is load-bearing. ``.do`` was committable under the library until a review
+caught it, and IPUMS ships a Stata .do file with an extract, so ``git add -A`` after a fetch
+could have committed provider content. Enumerating extensions to block loses that race
+every time a new one is re-included globally.
+
+So it is verified rather than assumed: check_ignores() runs on every ordinary build, with no
+flag to remember, and probes ten extensions plus a stray archive at the root.
 """
 
 from __future__ import annotations
@@ -40,6 +48,8 @@ except ImportError:  # pragma: no cover -- environment, not logic
         "  PyYAML is required to read demo/manifest.yml:  pip install pyyaml\n"
         "  (both demo scripts need it; see demo/README.md)"
     )
+
+from _common import latest_vintage
 
 HERE = Path(__file__).resolve().parent
 
@@ -58,7 +68,7 @@ def expected_dirs(man: dict) -> set[str]:
         survey = f"{s['iso3']}_{s['year']}_{s['programme']}"
         units = [f"{survey}_{v}" for v in s["vintages"]]
         if s["vintages"] and s.get("adaptations"):
-            master = s["vintages"][-1]
+            master = latest_vintage(s["vintages"])
             units += [f"{survey}_{master}_v01_A_{a}" for a in s["adaptations"]]
         for unit in units:
             for d in vdirs:
@@ -87,31 +97,42 @@ def build(man: dict, root: Path) -> set[str]:
     return dirs
 
 
-def check_ignores(root: Path) -> tuple[list[str], str | None]:
+def check_ignores(root: Path, dirs: set[str]) -> tuple[list[str], str | None]:
     """Prove git would refuse to commit fetched data, rather than trusting it would.
 
-    Returns (leaked, error). `error' is non-None when the probe could not run at all --
+    Returns (leaked, error). ``error`` is non-None when the probe could not run at all --
     which must NOT be read as "nothing leaked". An earlier version ignored git's return
     code and inferred safety from empty stdout, so outside a worktree, or with git absent,
     it reported the tree safe having tested nothing: a guard that cannot fail.
 
     Extensions are enumerated broadly on purpose, and include the ones that HAVE leaked.
-    `.do' was committable under this tree until review caught it -- MICS ships .do syntax
-    files that --place-mics copies -- and `.py', `.md' and `.R' leaked too while the deny
+    ``.do`` was committable under this tree until review caught it -- MICS ships .do syntax
+    files that --place-mics copies -- and ``.py``, ``.md`` and ``.R`` leaked too while the deny
     rule sat above the global re-includes instead of below them.
     """
-    stem = "ETH/ETH_2016_DHS/ETH_2016_DHS_v01_M"
-    probes = [f"{stem}/Data/Stata/probe.{e}" for e in
-              ("dta", "csv", "sav", "zip", "do", "xml", "py", "md", "R")]
-    probes += [f"{stem}/Doc/probe.pdf", "probe.zip"]
+    # The probe directory is DERIVED from the manifest, never hard-coded. An earlier
+    # version named ETH/ETH_2016_DHS/... literally, so removing or renaming ETH would have
+    # made the probe CREATE directories that the manifest does not describe -- leaving leaf
+    # dirs without .gitkeep and putting the tree into the very drift --check exists to
+    # catch. Probing inside a directory the manifest already declares cannot do that.
+    if not dirs:
+        # Never fabricate a probe path from an empty set. ``stem = ""`` yields "/probe.dta",
+        # which pathlib reads as ABSOLUTE, so ``root / rel`` escapes the repository entirely
+        # and the script would try to write to the filesystem root. An empty set means the
+        # manifest declares no surveys, which is a manifest error, not something to probe.
+        return [], "manifest declares no directories, so the ignore rules cannot be probed"
+    stem = sorted(dirs)[0]
+    probes = [f"{stem}/probe.{e}" for e in
+              ("dta", "csv", "sav", "zip", "do", "xml", "py", "md", "R", "pdf")]
+    probes += ["probe.zip"]
 
     leaked: list[str] = []
     for rel in probes:
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(b"")
-        # `git check-ignore -q' exits 0 when a rule matches -- INCLUDING a negation --
-        # so it cannot answer "would this be committed?". `git add --dry-run' can.
+        # ``git check-ignore -q`` exits 0 when a rule matches -- INCLUDING a negation --
+        # so it cannot answer "would this be committed?". ``git add --dry-run`` can.
         try:
             r = subprocess.run(
                 ["git", "add", "--dry-run", "--", str(p)],
@@ -143,7 +164,7 @@ def main() -> int:
 
     if not args.check:
         dirs = build(man, root)
-        leaked, error = check_ignores(root)
+        leaked, error = check_ignores(root, dirs)
         print(f"  built {root}")
         print(f"  {len(dirs)} leaf directories, {len(dirs)} .gitkeep files, 0 bytes of data")
         if error:

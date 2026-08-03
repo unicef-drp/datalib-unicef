@@ -17,7 +17,7 @@ WHY IPUMS, AND WHAT IT ACTUALLY DEMONSTRATES
 IPUMS DHS returns ONE harmonized rectangular extract spanning the samples requested --
 which is the opposite shape from the archive datalib manages. That mismatch is the
 point of the demo rather than a problem with it: this script partitions that single
-file into `<CCC>/<CCC>_<YYYY>_<PROG>/..._v01_M/Data/Stata/', turning a flat extract into
+file into ``<CCC>/<CCC>_<YYYY>_<PROG>/..._v01_M/Data/Stata/``, turning a flat extract into
 a resolvable library. Organising an archive is what datalib is for, so the demo shows
 the tool doing its actual job rather than merely reading a tree someone else arranged.
 
@@ -27,7 +27,7 @@ Not an omission. MICS microdata is registration-gated and COUNTRY-OWNED: UNICEF
 distributes on behalf of the countries that own it, so redistribution is not UNICEF's to
 grant, and there is no training/model dataset of the kind DHS publishes. IPUMS MICS
 exists but is not among the collections the IPUMS API supports, so even that route is a
-manual web extract. So `--place-mics' takes files YOU already downloaded and puts them
+manual web extract. So ``--place-mics`` takes files YOU already downloaded and puts them
 where datalib expects; it never fetches.
 
 Third-party GitHub repositories republishing MICS microdata do exist. Do not point this
@@ -36,7 +36,7 @@ that decision.
 
 STATUS OF THE IPUMS IDENTIFIERS
 -------------------------------
-`ipums.collection' and every `ipums_sample' in manifest.yml are UNVERIFIED -- written
+``ipums.collection`` and every ``ipums_sample`` in manifest.yml are UNVERIFIED -- written
 without an API key, so never checked against the live sample list. This script does not
 pretend otherwise: it surfaces the API's own rejection, naming the code at fault, so the
 first real run tells you exactly what to correct in the manifest.
@@ -57,6 +57,8 @@ except ImportError:  # pragma: no cover -- environment, not logic
         "  PyYAML is required to read demo/manifest.yml:  pip install pyyaml\n"
         "  (both demo scripts need it; see demo/README.md)"
     )
+
+from _common import latest_vintage
 
 HERE = Path(__file__).resolve().parent
 DATA_SUFFIXES = {".dta", ".csv", ".sav", ".zip", ".pdf", ".do", ".xml"}
@@ -86,6 +88,26 @@ def clean(root: Path) -> int:
         if p.is_file() and p.name != ".gitkeep" and p.name != ".datalib":
             p.unlink()
             removed += 1
+    # demo/_extract too: --clean claims to restore the pre-fetch state, and leaving the
+    # raw IPUMS download behind after --keep-extract would make that claim false.
+    raw = HERE / "_extract"
+    if raw.is_dir():
+        n = sum(1 for p in raw.rglob("*") if p.is_file())
+        # NOT ignore_errors: --clean advertises that it restores the pre-fetch state, so a
+        # removal that silently failed would make the success message a lie -- and leave
+        # provider bytes on disk while telling the operator they are gone.
+        try:
+            shutil.rmtree(raw)
+        except OSError as exc:
+            # Recount AFTER the failure. rmtree deletes as it walks, so it can remove some
+            # files before raising -- reporting the pre-deletion count would overstate what
+            # is left, and the whole point of this branch is to tell the operator accurately
+            # how much provider data is still on disk.
+            left = sum(1 for p in raw.rglob("*") if p.is_file()) if raw.is_dir() else 0
+            print(f"  FAILED to remove demo/_extract: {exc}")
+            print(f"  {left} of {n} raw download file(s) are STILL THERE. Remove by hand.")
+            return 1
+        print(f"  removed demo/_extract ({n} raw download file(s))")
     print(f"  removed {removed} fetched file(s); skeleton and .gitkeep untouched")
     return 0
 
@@ -122,7 +144,7 @@ def fetch_ipums(man: dict, root: Path, keep_extract: bool) -> int:
     )
     try:
         client.submit_extract(extract)
-        print(f"  submitted; waiting (this is IPUMS-side, typically minutes)")
+        print("  submitted; waiting (this is IPUMS-side, typically minutes)")
         client.wait_for_extract(extract)
         dl = HERE / "_extract"
         dl.mkdir(exist_ok=True)
@@ -197,7 +219,7 @@ def partition(df, man: dict, root: Path) -> int:
         survey = f"{s['iso3']}_{s['year']}_{s['programme']}"
         units = [f"{survey}_{v}" for v in s["vintages"]]
         if s["vintages"] and s.get("adaptations"):
-            master = s["vintages"][-1]
+            master = latest_vintage(s["vintages"])
             units += [f"{survey}_{master}_v01_A_{a}" for a in s["adaptations"]]
         for unit in units:
             d = stata_dir(root, s, unit)
@@ -213,7 +235,7 @@ def place_mics(man: dict, root: Path, src: Path) -> int:
     """Copy MICS files the user already downloaded into the expected locations."""
     entries = man.get("mics_manual") or []
     if not entries:
-        print("  manifest.yml has an empty `mics_manual' list, so there is nothing to place.")
+        print("  manifest.yml has an empty ``mics_manual`` list, so there is nothing to place.")
         print("  Add the surveys you hold, rerun make_demo_skeleton.py, then rerun this.")
         return 0
     if not src.is_dir():
