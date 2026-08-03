@@ -1,0 +1,144 @@
+# demo/manifest.yml — what the demo library CONTAINS, declared rather than discovered.
+#
+# Two consumers read this file, which is why it exists at all:
+#
+#   make_demo_skeleton.py   builds demo/datalib/ as empty folders + .gitkeep, and
+#                           --check fails if the committed skeleton and this file
+#                           have drifted apart
+#   fetch_demo_library.py   downloads the data and places it into that skeleton
+#
+# NO DATA IS COMMITTED. Only the shape is. Survey microdata is governed by its
+# provider's terms, not by this repository's MIT licence -- see demo/README.md and the
+# THIRD-PARTY MATERIALS section of LICENSE. Each user fetches under their own
+# agreement; nothing is redistributed here.
+#
+# ---------------------------------------------------------------------------------
+# VERIFICATION STATUS — read before trusting the codes below
+# ---------------------------------------------------------------------------------
+# The 'ipums.collection' string and every 'ipums_sample' code below are UNVERIFIED.
+# They were written without an IPUMS API key, so they could not be checked against
+# the live sample list, and IPUMS's own API reference is JavaScript-rendered and could
+# not be read either. The IPUMS API is documented as supporting IPUMS DHS, and the
+# country/year/programme triples below are all real DHS surveys -- but the IPUMS
+# *sample identifiers* are a guess at the naming pattern.
+#
+# fetch_demo_library.py therefore does NOT assume they are right: it asks the API and
+# reports what the API says, naming the offending code. Fix them here, once, when the
+# first real run tells you what they should be. Do not paper over a rejection.
+# ---------------------------------------------------------------------------------
+
+version: 1
+
+# The library root, relative to this file. datalib resolves this as candidate 3.
+library_dir: "datalib"
+
+ipums:
+  # Collection identifier passed to ipumspy's MicrodataExtract(collection=...).
+  # UNVERIFIED — see above.
+  collection: "dhs"
+
+  # Kept deliberately small: a demo should download in a minute, not an hour, and
+  # every variable added is bytes every user pays for. These are IPUMS DHS
+  # integrated variable names; a demo needs identity, a weight, and enough to
+  # compute one thing.
+  #
+  # SAMPLE is not optional. Partitioning on YEAR alone silently mixes countries that
+  # share a year -- and this manifest has two such collisions, BGD/IDN in 2017 and
+  # COL/ZWE in 2015 -- so an extract without SAMPLE cannot be split correctly.
+  variables:
+    - "SAMPLE"        # the per-survey discriminator; see below
+    - "COUNTRY"
+    - "YEAR"
+    - "IDHSHID"       # household identifier
+    - "IDHSPID"       # person identifier
+    - "HHWEIGHT"
+    - "URBAN"
+    - "WEALTHQ"       # wealth quintile
+    - "HHMEMTOTAL"
+    - "AGE"
+    - "SEX"
+    - "EDUCLVL"       # the demo indicator is built from this
+
+  data_format: "stata"
+
+# ---------------------------------------------------------------------------------
+# The demo library's shape.
+#
+# Six countries across regions, each a REAL DHS survey, so the naming grammar on
+# screen is the grammar an operator will actually meet. Vintages and adaptations are
+# datalib concepts, not IPUMS ones: the fetcher partitions one integrated extract
+# into this layout, which is the point of the demo -- it shows datalib turning a
+# single flat file into a resolvable library.
+# ---------------------------------------------------------------------------------
+surveys:
+  - iso3: BGD
+    year: 2017
+    programme: DHS
+    ipums_sample: "bd2017dhs"      # UNVERIFIED
+    vintages: ["v01_M"]
+    adaptations: ["HLT"]
+
+  - iso3: COL
+    year: 2015
+    programme: DHS
+    ipums_sample: "co2015dhs"      # UNVERIFIED
+    vintages: ["v01_M", "v02_M"]   # two vintages: pins "latest wins"
+    adaptations: ["HLT", "EDU"]
+
+  - iso3: ETH
+    year: 2016
+    programme: DHS
+    ipums_sample: "et2016dhs"      # UNVERIFIED
+    vintages: ["v01_M"]
+    adaptations: ["HLT"]
+
+  - iso3: IDN
+    year: 2017
+    programme: DHS
+    ipums_sample: "id2017dhs"      # UNVERIFIED
+    vintages: ["v01_M"]
+    adaptations: []                # no adaptation: pins the empty-list case
+
+  - iso3: NGA
+    year: 2018
+    programme: DHS
+    ipums_sample: "ng2018dhs"      # UNVERIFIED
+    vintages: ["v01_M"]
+    adaptations: ["EDU"]
+
+  - iso3: ZWE
+    year: 2015
+    programme: DHS
+    ipums_sample: "zw2015dhs"      # UNVERIFIED
+    vintages: ["v01_M"]
+    adaptations: ["HLT"]
+
+# ---------------------------------------------------------------------------------
+# MICS cannot be automated, and that is a provider fact rather than a gap here.
+#
+# MICS microdata is registration-gated and country-owned: UNICEF distributes on behalf
+# of the countries that own it, so redistribution is not UNICEF's to grant and there is
+# no training/model dataset equivalent to DHS's. IPUMS MICS exists (94 countries) but
+# is NOT among the collections the IPUMS API supports, so even the IPUMS route is a
+# manual web extract.
+#
+# So the fetcher does not download MICS. It PLACES files you already downloaded under
+# your own MICS account into the layout below. Leave this list empty to skip MICS
+# entirely; the demo works without it.
+# ---------------------------------------------------------------------------------
+mics_manual: []
+#  - iso3: ZWE
+#    year: 2019
+#    programme: MICS
+#    vintages: ["v01_M"]
+#    adaptations: ["HLT"]
+
+# The subdirectories every vintage and adaptation carries, mirroring
+# tests/fixtures/library so the demo tree and the conformance tree have one shape.
+vintage_dirs:
+  - "Data/Original"
+  - "Data/Other"
+  - "Data/R"
+  - "Data/Stata"
+  - "Doc"
+  - "Programs"
