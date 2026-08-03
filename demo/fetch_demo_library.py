@@ -296,7 +296,12 @@ def place_mics(man: dict, root: Path, src: Path) -> int:
             for f in found:
                 shutil.copy2(f, d / f.name)
                 placed += 1
-    unmatched = sorted(p.name for p in candidates if p not in matched_any)
+    # Relative to src, not just the basename: candidates comes from rglob, so two files in
+    # different subdirectories can share a name -- and the operator's next action is to find
+    # and rename a specific one, which a bare basename does not let them do.
+    unmatched = sorted(
+        p.relative_to(src).as_posix() for p in candidates if p not in matched_any
+    )
     if unmatched:
         # ALL of them, uncapped. A truncated list defeats the purpose: the operator's next
         # action is to rename the files that did not match, and they cannot rename what they
