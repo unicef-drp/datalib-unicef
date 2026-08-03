@@ -1,0 +1,3 @@
+# Presence-only marker: datalib treats this directory as a library.
+# The tree is a committed SKELETON. Data is fetched, never committed --
+# see demo/README.md.

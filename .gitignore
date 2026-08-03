@@ -82,6 +82,13 @@
 # which would sweep in anything.
 !/tests/stata-conformance.txt
 
+# The demo manifest. .gitkeep, *.py and *.md are already re-included globally, so
+# this is the only rule demo/ needs -- and it is scoped to YAML DIRECTLY in demo/,
+# never the tree below it. Everything a fetch produces (.dta, .csv, .zip, .pdf)
+# stays invisible to git under the deny-all, which is what stops survey microdata
+# from being committed to a public repository by an absent-minded `git add -A'.
+!/demo/*.yml
+
 # R-scrips and Rmarkdown-scripts
 !/**/*.R
 !/**/*.rds
@@ -211,3 +218,24 @@ tempCodeRunnerFile.do
 */**/**/temp*.do
 # Built by scripts/sync-public.ps1 outside the repo; the LICENSE variant it ships
 # is tracked in dist-public/ but the built tree never lives here.
+
+# ---------------------------------------------------------------------------------
+# THE DEMO LIBRARY TREE -- last, because later rules win
+#
+# Everything under demo/datalib/ arrives from a survey provider and none of it is ours
+# to publish. The global re-includes above are right for source and wrong here:
+# `.do' WAS committable under this tree until a review caught it, and MICS ships .do
+# syntax files that --place-mics copies. Enumerating extensions to block is the losing
+# side of that -- the next globally allowlisted extension reopens the hole silently.
+#
+# So deny the subtree and name the exceptions. This block MUST be the last word on
+# these paths: placed higher up it was overridden by !/**/*.py, !/**/*.md and !/**/*.R,
+# which left three extensions committable inside the demo library. Verified by probing
+# ten extensions, not by reading the rules.
+#
+# The `!/demo/datalib/**/' line is not decoration: git will not descend into an excluded
+# directory, so without it the .gitkeep re-include below can never match.
+/demo/datalib/**
+!/demo/datalib/**/
+!/demo/datalib/**/.gitkeep
+!/demo/datalib/.datalib
