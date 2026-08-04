@@ -19,11 +19,74 @@ data files:           <vintage-folder-name>_<module>.dta   under Data/Stata/
 Token positions when splitting on `_`: 1 country, 2 year, 3 survey,
 4 master vintage (`v01`), 6 adaptation vintage, 8 collection.
 
+**Token 3 carries sub-national identity; token 1 never does.** International assessments
+admit participants that are not countries — IEA benchmarking entities (`BFL`/`BFR` for the
+Belgian language communities, `CAB`/`CQU` for Alberta and Quebec) and PISA sub-national
+economies. These are filed under the **parent country's ISO3** in token 1, with the entity
+appended to token 3 after a **non-underscore separator**:
+
+```
+BEL/BEL_2016_PIRLS-BFL/BEL_2016_PIRLS-BFL_v01_M/Data/Stata/
+    BEL_2016_PIRLS-BFL_v01_M_acg.dta
+BEL/BEL_2016_PIRLS-BFR/BEL_2016_PIRLS-BFR_v01_M/...
+```
+
+Three constraints force this, each independently:
+
+- **The token count is fixed** at 3/5/8. `BEL_2016_PIRLS_BFL` is four tokens, so every
+  position after it shifts and `BFL` is read as a master vintage. The separator may be
+  anything except `_`; the convention is `-`.
+- **`_dl_islib` requires a `<CCC>_*` grandchild** (literally `dir "<child>_*"`). A survey
+  folder named `BFL_2016_PIRLS` under `BEL/` does not match `BEL_*`, so putting the entity
+  in token 1 defeats the structural library test.
+- **`ctrycode` provenance must be a real ISO3.** Rule 4 adds `ctrycode` from the resolved
+  country token. `BFL` is not an ISO3 and joins to no country reference table — region,
+  income group, population all fail silently. `BEL` joins; the language community stays in
+  the survey's identity, which is where it belongs.
+
+Consequence for matching, by design: survey matching is exact-suffix (rule 1), so `PIRLS`
+matches `BEL_2016_PIRLS` and **does not** match `BEL_2016_PIRLS-BFL`. They are distinct
+surveys, and a caller asking for one does not silently receive the other.
+
 ## Shared semantics (all implementations)
 
-1. **Uppercase once at the boundary.** `country`, `survey`, `collection` inputs are
-   trimmed and uppercased before any matching. Matching is **exact** (country) or
-   **exact-suffix** (`*_<SURVEY>` for survey folders) — never substring.
+1. **Normalise case once at the boundary — and not all in the same direction.**
+   `country`, `survey`, `collection` inputs are trimmed and **uppercased** before any
+   matching. Matching is **exact** (country) or **exact-suffix** (`*_<SURVEY>` for survey
+   folders) — never substring.
+
+   `module` is the exception. Module tokens are **lowercase on disk and in
+   `config/collections.yml`** — that is a deposit convention, enforced by a registry guard.
+   `HLT` declares `household hhmembers adult children`; `IPUMS` declares
+   `hh bh ch fs hl mn wm`; so an IEA-style module is `acg`, never `ACG`.
+
+   A caller is **expected** to supply lowercase, but that expectation is not uniformly
+   enforced, and this document is descriptive rather than aspirational:
+
+   | leg | file | behaviour on a module argument |
+   |---|---|---|
+   | Python | `python/src/datalib/load.py` | lowercases — `str(m).strip().lower()` |
+   | R | `r/R/datalib_load.R` | trims only — `trimws(as.character(module))` |
+   | Stata | `stata/src/_/_dlw.ado` | passes the token through as given |
+
+   So a caller who supplies `ACG` resolves the module in Python and gets a not-found error in
+   R and Stata. See the Alignment status table; closing in v0.10.0.
+
+   Cited by path and by a greppable literal, deliberately, not by line number: line numbers
+   drift on every edit above them and a stale citation in the contract is worse than none.
+
+   The asymmetry is not cosmetic. A collection is an identifier the operator types
+   (`HLT`), whereas a module is part of a **file name**, and file names are where case
+   becomes a portability bug: `load.py` builds `f"{stem}_{module}.dta"`, so a lowercase
+   registry token against an uppercase file on disk resolves on Windows and **fails on
+   Linux and macOS**. Stata makes it worse — `: dir` lowercases names on Windows, so the
+   Stata leg cannot observe the true case even where the filesystem would forgive it. A
+   deposit with `..._ACG.dta` is therefore unreadable from Stata and unreadable on CI.
+
+   Normalisation applies to the **request**, never to the lookup. A wrongly-cased file on
+   disk must fail loudly rather than be found by a case-insensitive search: silently
+   accepting it would hide a deposit error on the one platform that tolerates it and
+   surface it later on someone else's.
 2. **Vintages are integers.** Inputs accept `1`, `01`, `v01`, `V01`; internal/display
    form is `v%02d`. **"Latest" is the numeric maximum**, never directory-listing or
    alphabetical order (`v10` > `v09`).
@@ -246,6 +309,7 @@ Stata moved ahead of R and Python in v0.9.0-v0.9.3. The gap is being closed in
 | create proposes latest+1 vintage | - (`v01`) | - (`v01`) | yes | v0.10.0 |
 | enumerators error on an absent parent | yes | yes | - | v0.10.0 |
 | distinct error classes per contract error | no, and inherently | yes | yes | shipped (v0.9.7) |
+| module request lowercased at the boundary | - (as given) | - (trim only) | yes | v0.10.0 |
 
 The update check is present in all three, but note what it is **not**: it is
 declared in [`surface.yml`](surface.yml) under `maintenance:`, not under
