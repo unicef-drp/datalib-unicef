@@ -39,9 +39,14 @@ def test_registry_contents_match_contract() -> None:
 
 
 def test_every_module_token_is_lowercase() -> None:
-    """Module tokens are lowercase everywhere, and this is a PORTABILITY guard.
+    """Every module token in the REGISTRY is lowercase. Scope is deliberate and narrow.
 
-    A module token is part of a file name: ``load.py`` builds ``f"{stem}_{module}.dta"``.
+    This checks ``collections.yml`` only. It does not scan any deposit, so a mixed-case file
+    on disk is not caught here -- it surfaces later as a load that cannot find its file. The
+    registry is the half worth guarding because it is what the loader trusts to build the
+    name; the disk half is a deposit-review question.
+
+    A module token is part of a file name: ``load.py`` builds ``f"{rp.stem}_{module}.dta"``.
     So an uppercase token against a lowercase file -- or the reverse -- resolves on
     Windows and fails on Linux and macOS, which is where CI runs. Stata is worse: ``: dir``
     lowercases names on Windows, so the Stata leg cannot observe the true case even where
