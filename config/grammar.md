@@ -55,17 +55,19 @@ surveys, and a caller asking for one does not silently receive the other.
    matching. Matching is **exact** (country) or **exact-suffix** (`*_<SURVEY>` for survey
    folders) — never substring.
 
-   `module` is the exception. Module tokens are **lowercase on disk and in
-   `config/collections.yml`** — a deposit convention. Only the **registry** half is enforced
-   (a test asserts every module token in `collections.yml` is lowercase); nothing scans a
-   deposit, so a mixed-case file on disk is caught only when a load fails to find it. The
-   real archive currently contains such files — IEA deposits use `_ACG` — so this is a live
-   gap, not a hypothetical one.
+   `module` is the exception, and it is a **requirement on deposits** rather than a statement
+   about them: module tokens **should be** lowercase, both in `config/collections.yml` and in
+   the deposited file name.
+   Only the registry half is enforced — a test asserts every module token in
+   `config/collections.yml` is lowercase. Nothing scans a deposit, so a mixed-case file is
+   caught only when a load fails to find it, and the real archive does contain such files (IEA
+   deposits use `_ACG`). Treat this as a convention deposits are expected to follow and
+   currently sometimes do not — never as an invariant a caller may rely on.
    `HLT` declares `household hhmembers adult children`; `IPUMS` declares
    `hh bh ch fs hl mn wm`; so an IEA-style module is `acg`, never `ACG`.
 
    A caller is **expected** to supply lowercase, but that expectation is not uniformly
-   enforced, and this document is descriptive rather than aspirational:
+   enforced. What each leg does with a module argument today:
 
    | leg | file | behaviour on a module argument |
    |---|---|---|
@@ -81,8 +83,9 @@ surveys, and a caller asking for one does not silently receive the other.
 
    The asymmetry is not cosmetic. A collection is an identifier the operator types
    (`HLT`), whereas a module is part of a **file name**, and file names are where case
-   becomes a portability bug: `python/src/datalib/load.py` builds `f"{rp.stem}_{module}.dta"`, so a lowercase
-   registry token against an uppercase file on disk resolves on Windows and **fails on
+   becomes a portability bug: `python/src/datalib/load.py` builds
+   `f"{rp.stem}_{module}.dta"`, so a lowercase registry token against an uppercase file on
+   disk resolves on Windows and **fails on
    Linux and macOS**. Stata makes it worse — `: dir` lowercases names on Windows, so the
    Stata leg cannot observe the true case even where the filesystem would forgive it. A
    deposit with `..._ACG.dta` is therefore unreadable from Stata and unreadable on CI.
